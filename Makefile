@@ -1,23 +1,32 @@
 SOURCES := $(shell find src/ -type f | grep -E '\.(h|c)(pp)?$$')
+MAKE_OPTS := -j4
 
 .PHONY: help
 help:
 	@echo -e "Try one of these make targets:\n"
-	@grep "^\.PHONY: " Makefile | cut -d" " -f2- | sed -e "s/ /\n/g" | grep -v "^_"
+	@grep "^\.PHONY: " Makefile | cut -d" " -f2- | tr -s " " | sed -e "s/ /\n/g" | grep -v "^_" | sed -e "s/^/make /"
 
-.PHONY: run run-with-music
+.PHONY: run run-with-music run-debug
 run: build
 	cd build && ./glowbox
 run-with-music: build
 	cd build && ./glowbox --enable-music
+run-debug: build-debug | has-gdb
+	cd build-debug && gdb -batch -ex "run" -ex "backtrace" ./glowbox
 
 .PHONY: build
 build: build/glowbox
 build/glowbox: ${SOURCES} | build/Makefile has-make
-	make -C build
-
+	make -C build $(MAKE_OPTS)
 build/Makefile: | build/ _submodules has-cmake
 	cd build && cmake ..
+
+.PHONY: build-debug
+build-debug: build-debug/glowbox
+build-debug/glowbox: ${SOURCES} | build-debug/Makefile has-make
+	make -C build-debug $(MAKE_OPTS)
+build-debug/Makefile: | build-debug/ _submodules has-cmake
+	cd build-debug && cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 .PHONY: _submodules
 _submodules: | has-git
@@ -25,7 +34,8 @@ _submodules: | has-git
 
 .PHONY: clean
 clean:
-	# TODO: submodules
+	@# TODO: submodules
+	@test -d build-debug && rm -rfv build-debug/ || true
 	@rm -rfv build/*
 
 
