@@ -20,7 +20,9 @@ unsigned int generateBuffer(Mesh &mesh) {
     glBindVertexArray(vaoID);
 
     generateAttribute(0, 3, mesh.vertices, false);
-    generateAttribute(1, 3, mesh.normals, true);
+    if (mesh.normals.size() > 0) {
+        generateAttribute(1, 3, mesh.normals, true);
+    }
     if (mesh.textureCoordinates.size() > 0) {
         generateAttribute(2, 2, mesh.textureCoordinates, false);
     }
