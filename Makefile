@@ -1,5 +1,6 @@
 SOURCES := $(shell find src/ -type f | grep -E '\.(h|c)(pp)?$$')
 MAKE_OPTS := -j4
+GDB_OPTS := -ex "set style enabled on"
 
 .PHONY: help
 help:
@@ -12,7 +13,7 @@ run: build
 run-with-music: build
 	cd build && ./glowbox --enable-music
 run-debug: build-debug | has-gdb
-	cd build-debug && gdb -batch -ex "run" -ex "backtrace" ./glowbox
+	cd build-debug && gdb -batch $(GDB_OPTS) -ex "run" -ex "backtrace" ./glowbox
 
 .PHONY: build
 build: build/glowbox
