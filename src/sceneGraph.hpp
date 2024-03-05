@@ -14,7 +14,11 @@
 #include <fstream>
 
 enum SceneNodeType {
-	GEOMETRY, POINT_LIGHT, SPOT_LIGHT
+	GEOMETRY, POINT_LIGHT, TEXTURE,
+};
+
+enum TextureType {
+	COLOR, NORMAL, ROUGHNESS,
 };
 
 struct SceneNode {
@@ -39,6 +43,7 @@ struct SceneNode {
 	glm::vec3 position;
 	glm::vec3 rotation;
 	glm::vec3 scale;
+    glm::mat4 modelMatrix;
 
 	// A transformation matrix representing the transformation of the node's location relative to its parent. This matrix is updated every frame.
 	glm::mat4 currentTransformationMatrix;
@@ -52,7 +57,24 @@ struct SceneNode {
 
 	// Node type is used to determine how to handle the contents of a node
 	SceneNodeType nodeType;
+    TextureType textureType;
+    
+    unsigned int texID;
+    unsigned int normalTexID;
 };
+
+
+struct PointLight : SceneNode {
+    
+	PointLight() : SceneNode() {
+        intensity = 1.0;
+        color = glm::vec3(1, 1, 1);
+    }
+    
+    double intensity;
+    glm::vec3 color;
+};
+
 
 SceneNode* createSceneNode();
 void addChild(SceneNode* parent, SceneNode* child);

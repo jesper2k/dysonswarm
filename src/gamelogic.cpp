@@ -27,16 +27,34 @@ enum KeyFrameAction {
 
 #include <timestamps.h>
 
+
+/*
+TODO:
+Perspective projection wackery
+Improve ugly code for manually setting each light position, color, and intensity
+
+*/
+
+
+
 double padPositionX = 0;
 double padPositionZ = 0;
 
 unsigned int currentKeyFrame = 0;
 unsigned int previousKeyFrame = 0;
 
+
 SceneNode* rootNode;
 SceneNode* boxNode;
 SceneNode* ballNode;
 SceneNode* padNode;
+SceneNode* textNode;
+
+PointLight* lightNode0;
+PointLight* lightNode1;
+PointLight* lightNode2;
+PointLight* lightNode3;
+PointLight* lights[4];
 
 double ballRadius = 3.0f;
 
@@ -62,6 +80,8 @@ bool mouseLeftPressed   = false;
 bool mouseLeftReleased  = false;
 bool mouseRightPressed  = false;
 bool mouseRightReleased = false;
+
+
 
 // Modify if you want the music to start further on in the track. Measured in seconds.
 const float debug_startTime = 0;
@@ -90,11 +110,19 @@ void mouseCallback(GLFWwindow* window, double x, double y) {
     glfwSetCursorPos(window, windowWidth / 2, windowHeight / 2);
 }
 
-//// A few lines to help you if you've never used c++ structs
-// struct LightSource {
-//     bool a_placeholder_value;
-// };
-// LightSource lightSources[/*Put number of light sources you want here*/];
+
+unsigned int getTextureID(PNGImage texture) {
+    unsigned int texID;
+    
+    glGenTextures(1, &texID);
+    glBindTexture(GL_TEXTURE_2D, texID);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.width, texture.height, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, texture.pixels.data());
+    glGenerateMipmap(GL_TEXTURE_2D);
+    return texID;
+}
 
 void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     buffer = new sf::SoundBuffer();
@@ -111,6 +139,22 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     shader->makeBasicShader("../res/shaders/simple.vert", "../res/shaders/simple.frag");
     shader->activate();
 
+    // Loading textures
+    PNGImage charMap = loadPNGFile("../res/textures/charmap.png");
+
+    GLuint texID = getTextureID(charMap);
+    
+    Mesh text = generateTextGeometryBuffer("Hello, world!", 39./29., 29);
+    std::cout << text.indices.size() << std::endl;
+    textNode = createSceneNode();
+    textNode->vertexArrayObjectID  = generateBuffer(text);
+    textNode->VAOIndexCount        = text.indices.size();
+    textNode->nodeType = TEXTURE;
+    textNode->texID = texID;
+
+    textNode->scale.x = 10;
+    textNode->scale.y = 10;
+
     // Create meshes
     Mesh pad = cube(padDimensions, glm::vec2(30, 40), true);
     Mesh box = cube(boxDimensions, glm::vec2(90), true, true);
@@ -126,10 +170,40 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     boxNode  = createSceneNode();
     padNode  = createSceneNode();
     ballNode = createSceneNode();
+    
+    // Light source nodes
+    lightNode0 = new PointLight();
+    lightNode1 = new PointLight();
+    lightNode2 = new PointLight();
+    lightNode3 = new PointLight();
+    PointLight* lights[] = {lightNode0, lightNode1, lightNode2, lightNode3} ;
+
+    int arr[] = {1, 2, 3, 4};
+
+    lightNode0->nodeType = POINT_LIGHT;
+    lightNode1->nodeType = POINT_LIGHT;
+    lightNode2->nodeType = POINT_LIGHT;
+    lightNode3->nodeType = POINT_LIGHT;
+
+    textNode->position = glm::vec3(0, 0, -110);
+    lightNode0->position = glm::vec3(0.6, -0.3, -0.3);
+    lightNode1->position = glm::vec3(0.2, -0.3, -0.3);
+    lightNode2->position = glm::vec3(-0.2, -0.3, -0.3);
+    lightNode3->position = glm::vec3(0.0, 0.0, 0.0);
+    
+    lightNode0->color = glm::vec3(0.1, 0.2, 0.8); // Blue
+    lightNode1->color = glm::vec3(0.2, 0.8, 0.1); // Green
+    lightNode2->color = glm::vec3(0.8, 0.2, 0.1); // Red
+    lightNode2->intensity = 1.5f;
+
+    lightNode3->color = glm::vec3(1, 1, 1); // White
+    lightNode3->intensity = 0.3f;
 
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(padNode);
     rootNode->children.push_back(ballNode);
+    rootNode->children.push_back(textNode);
+    ballNode->children.push_back(lightNode3); // Moving light
 
     boxNode->vertexArrayObjectID  = boxVAO;
     boxNode->VAOIndexCount        = box.indices.size();
@@ -146,7 +220,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
 
     getTimeDeltaSeconds();
-
+    
     std::cout << fmt::format("Initialized scene with {} SceneNodes.", totalChildren(rootNode)) << std::endl;
 
     std::cout << "Ready. Click to start!" << std::endl;
@@ -310,9 +384,9 @@ void updateFrame(GLFWwindow* window) {
 
     glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 350.f);
 
-    glm::vec3 cameraPosition = glm::vec3(0, 2, -20);
+    glm::vec3 cameraPosition = glm::vec3(0, 2, -10);
 
-    // Some math to make the camera move in a nice way
+    // Some fancy math to make the camera move in a nice way
     float lookRotation = -0.6 / (1 + exp(-5 * (padPositionX-0.5))) + 0.3;
     glm::mat4 cameraTransform =
                     glm::rotate(0.3f + 0.2f * float(-padPositionZ*padPositionZ), glm::vec3(1, 0, 0)) *
@@ -320,6 +394,7 @@ void updateFrame(GLFWwindow* window) {
                     glm::translate(-cameraPosition);
 
     glm::mat4 VP = projection * cameraTransform;
+
 
     // Move and rotate various SceneNodes
     boxNode->position = { 0, -10, -80 };
@@ -334,48 +409,132 @@ void updateFrame(GLFWwindow* window) {
         boxNode->position.z - (boxDimensions.z/2) + (padDimensions.z/2) + (1 - padPositionZ) * (boxDimensions.z - padDimensions.z)
     };
 
-    updateNodeTransformations(rootNode, VP);
+    updateNodeTransformations(rootNode, glm::identity<glm::mat4>(), VP);
 
 
 
+    // --- Shader stuff for lighting --- //
+
+    // Passing a uniform to the vertex shader
+    glUniform3f(0, 0.5, 1.0, 1.5);
+
+    // Task 1f)
+    float ambient = 0.05;
+    glUniform1f(7, ambient);
+
+    float boxSize = boxDimensions.y;
+    glUniform3f(8, ballPosition.x/180, ballPosition.y/90, ballPosition.z/90);
+
+
+    // LightNode 3 didn't want to move with the pad, so I'm setting the positions manually here
+    lightNode3->position.x = 0.5-padPositionX;
+    lightNode3->position.y = -0.3;
+    lightNode3->position.z = 0.3-padPositionZ;
+
+
+    // Task 3
+    // Setting light values
+    
+    /*
+    for (int i = 0; i < 4; i++) {
+        std::string identifierString;
+        GLint location;
+
+        // Color
+        identifierString = fmt::format("lights[{}].color", i);
+        location = shader->getUniformFromName(identifierString);
+        glUniform3fv(location, 1, glm::value_ptr(lightNode0->color));
+
+        // Position
+        identifierString = fmt::format("lights[{}].position", i);
+        location = shader->getUniformFromName(identifierString);
+        glUniform3fv(location, 1, glm::value_ptr(lightNode0->position));
+
+        // Intensity
+        identifierString = fmt::format("lights[{}].intensity", i);
+        location = shader->getUniformFromName(identifierString);
+        glUniform1f(location, lightNode0->intensity);
+    }
+    */
+    // This is not pretty, but fmt does not want to cooperate with me, and has forced my hand
+    
+    glUniform3fv(shader->getUniformFromName("lights[0].color"),     1, glm::value_ptr(lightNode0->color));
+    glUniform3fv(shader->getUniformFromName("lights[0].position"),  1, glm::value_ptr(lightNode0->position));
+    glUniform1f( shader->getUniformFromName("lights[0].intensity"),                   lightNode0->intensity);
+
+    glUniform3fv(shader->getUniformFromName("lights[1].color"),     1, glm::value_ptr(lightNode1->color));
+    glUniform3fv(shader->getUniformFromName("lights[1].position"),  1, glm::value_ptr(lightNode1->position));
+    glUniform1f( shader->getUniformFromName("lights[1].intensity"),                   lightNode1->intensity);
+
+    glUniform3fv(shader->getUniformFromName("lights[2].color"),     1, glm::value_ptr(lightNode2->color));
+    glUniform3fv(shader->getUniformFromName("lights[2].position"),  1, glm::value_ptr(lightNode2->position));
+    glUniform1f( shader->getUniformFromName("lights[2].intensity"),                   lightNode2->intensity);
+
+    glUniform3fv(shader->getUniformFromName("lights[3].color"),     1, glm::value_ptr(lightNode3->color));
+    glUniform3fv(shader->getUniformFromName("lights[3].position"),  1, glm::value_ptr(lightNode3->position));
+    glUniform1f( shader->getUniformFromName("lights[3].intensity"),                   lightNode3->intensity);
+
+
+
+    
+
+    
 
 }
 
-void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar) {
+
+void updateNodeTransformations(SceneNode* node, glm::mat4 modelTransformationThusFar, glm::mat4 VP) {
+    
     glm::mat4 transformationMatrix =
               glm::translate(node->position)
             * glm::translate(node->referencePoint)
-            * glm::rotate(node->rotation.y, glm::vec3(0,1,0))
-            * glm::rotate(node->rotation.x, glm::vec3(1,0,0))
-            * glm::rotate(node->rotation.z, glm::vec3(0,0,1))
-            * glm::scale(node->scale)
+                * glm::rotate(node->rotation.y, glm::vec3(0,1,0))
+                * glm::rotate(node->rotation.x, glm::vec3(1,0,0))
+                * glm::rotate(node->rotation.z, glm::vec3(0,0,1))
+                * glm::scale(node->scale)
             * glm::translate(-node->referencePoint);
 
-    node->currentTransformationMatrix = transformationThusFar * transformationMatrix;
+    // Task 1b) - Model Matrix
+    node->currentTransformationMatrix = VP * modelTransformationThusFar * transformationMatrix;
+    node->modelMatrix =                      modelTransformationThusFar * transformationMatrix;
 
     switch(node->nodeType) {
         case GEOMETRY: break;
         case POINT_LIGHT: break;
-        case SPOT_LIGHT: break;
     }
 
     for(SceneNode* child : node->children) {
-        updateNodeTransformations(child, node->currentTransformationMatrix);
+        updateNodeTransformations(child, node->modelMatrix, VP);
     }
 }
 
 void renderNode(SceneNode* node) {
     glUniformMatrix4fv(3, 1, GL_FALSE, glm::value_ptr(node->currentTransformationMatrix));
+    glUniformMatrix4fv(4, 1, GL_FALSE, glm::value_ptr(node->modelMatrix));
+
+    // Task 1d) - Normal matrix
+    // Object specific lighting
+    glm::mat4 inverseModelMatrix = glm::inverse(node->modelMatrix);
+    glm::mat3 inverseModelMatrix3f = glm::mat3(inverseModelMatrix);
+    glUniformMatrix3fv(6, 1, GL_TRUE, glm::value_ptr(inverseModelMatrix3f));
+
 
     switch(node->nodeType) {
         case GEOMETRY:
             if(node->vertexArrayObjectID != -1) {
                 glBindVertexArray(node->vertexArrayObjectID);
+                glUniform1i(64, 0);
+                glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
+            }
+            break;
+        case TEXTURE:
+            if(node->vertexArrayObjectID != -1) {
+                glBindVertexArray(node->vertexArrayObjectID);
+                glUniform1i(64, 1);
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
             break;
         case POINT_LIGHT: break;
-        case SPOT_LIGHT: break;
     }
 
     for(SceneNode* child : node->children) {
