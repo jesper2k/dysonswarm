@@ -118,10 +118,12 @@ vec4 calculateFragmentColor(Light light) {
 void main()
 {
     
+    /*
     if (is_textured == 1) {
         color = vec4(1.0, 0.0, 0.0, 1.0);
         return;
     }
+    */
 
 
     dither_intensity = dither(textureCoordinates);

@@ -1,3 +1,14 @@
+
+/*
+TODO:
+Perspective projection wackery
+Improve ugly code for manually setting each light position, color, and intensity
+
+Resources:
+- Instanced rendering for lots of mirrors: https://learnopengl.com/Advanced-OpenGL/Instancing
+
+*/
+
 #include <chrono>
 #include <GLFW/glfw3.h>
 #include <glad/glad.h>
@@ -28,14 +39,9 @@ enum KeyFrameAction {
 #include <timestamps.h>
 
 
-/*
-TODO:
-Perspective projection wackery
-Improve ugly code for manually setting each light position, color, and intensity
 
-*/
-
-
+double numMirrors = 10;
+Mesh* mirrors[];
 
 double padPositionX = 0;
 double padPositionZ = 0;
@@ -47,7 +53,9 @@ unsigned int previousKeyFrame = 0;
 SceneNode* rootNode;
 SceneNode* boxNode;
 SceneNode* ballNode;
+SceneNode* starNode;
 SceneNode* padNode;
+SceneNode* mirrorNode;
 SceneNode* textNode;
 
 PointLight* lightNode0;
@@ -65,6 +73,7 @@ sf::Sound* sound;
 
 const glm::vec3 boxDimensions(180, 90, 90);
 const glm::vec3 padDimensions(30, 3, 40);
+const glm::vec3 MirrorDimensions(3, 10, 10);
 
 glm::vec3 ballPosition(0, ballRadius + padDimensions.y, boxDimensions.z / 2);
 glm::vec3 ballDirection(1, 1, 0.2f);
@@ -145,7 +154,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     GLuint texID = getTextureID(charMap);
     
     Mesh text = generateTextGeometryBuffer("Hello, world!", 39./29., 29);
-    std::cout << text.indices.size() << std::endl;
+    //std::cout << text.indices.size() << std::endl;
     textNode = createSceneNode();
     textNode->vertexArrayObjectID  = generateBuffer(text);
     textNode->VAOIndexCount        = text.indices.size();
@@ -160,16 +169,30 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     Mesh box = cube(boxDimensions, glm::vec2(90), true, true);
     Mesh sphere = generateSphere(1.0, 40, 40);
 
+    // Replace this with mesh instantiating later
+    /*
+    for (int i = 0; i < numMirrors; i++) {
+        mirrors.push_back(cube(MirrorDimensions, glm::vec2(90), true, true));
+    }
+    */
+    
+    Mesh mirror = cube(MirrorDimensions, glm::vec2(90), true, true);
+
+
     // Fill buffers
     unsigned int ballVAO = generateBuffer(sphere);
+    unsigned int starVAO = generateBuffer(sphere);
     unsigned int boxVAO  = generateBuffer(box);
     unsigned int padVAO  = generateBuffer(pad);
+    unsigned int mirrorVAO  = generateBuffer(pad);
 
     // Construct scene
     rootNode = createSceneNode();
     boxNode  = createSceneNode();
     padNode  = createSceneNode();
+    mirrorNode = createSceneNode();
     ballNode = createSceneNode();
+    starNode = createSceneNode();
     
     // Light source nodes
     lightNode0 = new PointLight();
@@ -177,8 +200,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     lightNode2 = new PointLight();
     lightNode3 = new PointLight();
     PointLight* lights[] = {lightNode0, lightNode1, lightNode2, lightNode3} ;
-
-    int arr[] = {1, 2, 3, 4};
 
     lightNode0->nodeType = POINT_LIGHT;
     lightNode1->nodeType = POINT_LIGHT;
@@ -191,6 +212,9 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     lightNode2->position = glm::vec3(-0.2, -0.3, -0.3);
     lightNode3->position = glm::vec3(0.0, 0.0, 0.0);
     
+    starNode->position = glm::vec3(0, -20, -100);
+
+
     lightNode0->color = glm::vec3(0.1, 0.2, 0.8); // Blue
     lightNode1->color = glm::vec3(0.2, 0.8, 0.1); // Green
     lightNode2->color = glm::vec3(0.8, 0.2, 0.1); // Red
@@ -201,7 +225,9 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(padNode);
+    rootNode->children.push_back(mirrorNode);
     rootNode->children.push_back(ballNode);
+    rootNode->children.push_back(starNode);
     rootNode->children.push_back(textNode);
     ballNode->children.push_back(lightNode3); // Moving light
 
@@ -210,11 +236,13 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     padNode->vertexArrayObjectID  = padVAO;
     padNode->VAOIndexCount        = pad.indices.size();
+    mirrorNode->vertexArrayObjectID  = mirrorVAO;
+    mirrorNode->VAOIndexCount        = pad.indices.size();
 
     ballNode->vertexArrayObjectID = ballVAO;
     ballNode->VAOIndexCount       = sphere.indices.size();
-
-
+    starNode->vertexArrayObjectID = ballVAO;
+    starNode->VAOIndexCount       = sphere.indices.size();
 
 
 
@@ -402,7 +430,7 @@ void updateFrame(GLFWwindow* window) {
     ballNode->position = ballPosition;
     ballNode->scale = glm::vec3(ballRadius);
     ballNode->rotation = { 0, totalElapsedTime*2, 0 };
-
+    
     padNode->position  = {
         boxNode->position.x - (boxDimensions.x/2) + (padDimensions.x/2) + (1 - padPositionX) * (boxDimensions.x - padDimensions.x),
         boxNode->position.y - (boxDimensions.y/2) + (padDimensions.y/2),
@@ -411,6 +439,18 @@ void updateFrame(GLFWwindow* window) {
 
     updateNodeTransformations(rootNode, glm::identity<glm::mat4>(), VP);
 
+    // Star
+    float t = totalElapsedTime;
+    float pi = 3.1415926535897926462;
+
+    float starSize = 10;
+    starNode->position = glm::vec3(0, -20, -100);
+    starNode->scale = glm::vec3(starSize, starSize, starSize);
+    starNode->rotation = { 0, t/2, 0 };
+
+    mirrorNode->position = starNode->position + glm::vec3(glm::sin(t) * 50, 0, glm::cos(t) * 50);
+    mirrorNode->scale = glm::vec3(0.1, 0.1, 0.1);
+    mirrorNode->rotation = { pi/2, t, 0 };
 
 
     // --- Shader stuff for lighting --- //
@@ -528,11 +568,14 @@ void renderNode(SceneNode* node) {
             }
             break;
         case TEXTURE:
+            
+            /*
             if(node->vertexArrayObjectID != -1) {
                 glBindVertexArray(node->vertexArrayObjectID);
                 glUniform1i(64, 1);
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
+            */
             break;
         case POINT_LIGHT: break;
     }
