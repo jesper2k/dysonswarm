@@ -38,10 +38,9 @@ enum KeyFrameAction {
 
 #include <timestamps.h>
 
-
-
-double numMirrors = 10;
-Mesh* mirrors[];
+const float mirrorScale = 0.05;
+const int numMirrors = 50;
+Mirror* mirrors[numMirrors];
 
 double padPositionX = 0;
 double padPositionZ = 0;
@@ -55,7 +54,6 @@ SceneNode* boxNode;
 SceneNode* ballNode;
 SceneNode* starNode;
 SceneNode* padNode;
-SceneNode* mirrorNode;
 SceneNode* textNode;
 
 PointLight* lightNode0;
@@ -71,7 +69,7 @@ sf::SoundBuffer* buffer;
 Gloom::Shader* shader;
 sf::Sound* sound;
 
-const glm::vec3 boxDimensions(180, 90, 90);
+const glm::vec3 boxDimensions(180, 90, 180);
 const glm::vec3 padDimensions(30, 3, 40);
 const glm::vec3 MirrorDimensions(3, 10, 10);
 
@@ -167,17 +165,26 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     // Create meshes
     Mesh pad = cube(padDimensions, glm::vec2(30, 40), true);
     Mesh box = cube(boxDimensions, glm::vec2(90), true, true);
+    Mesh mirror = cube(boxDimensions, glm::vec2(90), true, true);
     Mesh sphere = generateSphere(1.0, 40, 40);
 
-    // Replace this with mesh instantiating later
-    /*
-    for (int i = 0; i < numMirrors; i++) {
-        mirrors.push_back(cube(MirrorDimensions, glm::vec2(90), true, true));
-    }
-    */
-    
-    Mesh mirror = cube(MirrorDimensions, glm::vec2(90), true, true);
 
+
+    rootNode = createSceneNode();
+
+    // Replace this with mesh instantiating later
+
+    for (int i = 0; i < numMirrors; i++) {
+        Mirror* newMirror = new Mirror();
+        newMirror->position = glm::vec3(0, 0, 0);
+        rootNode->children.push_back(newMirror);
+        
+        newMirror->vertexArrayObjectID = generateBuffer(pad);
+        newMirror->VAOIndexCount = pad.indices.size();
+
+        mirrors[i] = newMirror;
+    }
+    
 
     // Fill buffers
     unsigned int ballVAO = generateBuffer(sphere);
@@ -187,10 +194,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     unsigned int mirrorVAO  = generateBuffer(pad);
 
     // Construct scene
-    rootNode = createSceneNode();
     boxNode  = createSceneNode();
     padNode  = createSceneNode();
-    mirrorNode = createSceneNode();
     ballNode = createSceneNode();
     starNode = createSceneNode();
     
@@ -225,7 +230,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(padNode);
-    rootNode->children.push_back(mirrorNode);
     rootNode->children.push_back(ballNode);
     rootNode->children.push_back(starNode);
     rootNode->children.push_back(textNode);
@@ -236,8 +240,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     padNode->vertexArrayObjectID  = padVAO;
     padNode->VAOIndexCount        = pad.indices.size();
-    mirrorNode->vertexArrayObjectID  = mirrorVAO;
-    mirrorNode->VAOIndexCount        = pad.indices.size();
 
     ballNode->vertexArrayObjectID = ballVAO;
     ballNode->VAOIndexCount       = sphere.indices.size();
@@ -448,9 +450,19 @@ void updateFrame(GLFWwindow* window) {
     starNode->scale = glm::vec3(starSize, starSize, starSize);
     starNode->rotation = { 0, t/2, 0 };
 
-    mirrorNode->position = starNode->position + glm::vec3(glm::sin(t) * 50, 0, glm::cos(t) * 50);
-    mirrorNode->scale = glm::vec3(0.1, 0.1, 0.1);
-    mirrorNode->rotation = { pi/2, t, 0 };
+    
+    for (int i = 0; i < numMirrors; i++) {
+        float offset = 2*pi * i/numMirrors; // Offset from first mirror
+        float o = t + offset; // Orbit position, how far in the circular orbit each mirror is
+
+        mirrors[i]->position = starNode->position + glm::vec3(glm::sin(o) * 50, 0, glm::cos(o) * 50);
+        mirrors[i]->scale = mirrorScale * glm::vec3(1, 1, 1);
+        mirrors[i]->rotation = { pi/2, o, 0 };
+
+    }
+    //mirrors[0]->position = starNode->position + glm::vec3(glm::sin(t-1) * 50, 0, glm::cos(t-1) * 50);
+    //mirrors[0]->scale = glm::vec3(0.1, 0.1, 0.1);
+    //mirrors[0]->rotation = { pi/2, 10*t, 0 };
 
 
     // --- Shader stuff for lighting --- //

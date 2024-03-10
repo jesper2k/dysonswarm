@@ -76,6 +76,23 @@ struct PointLight : SceneNode {
 };
 
 
+struct Mirror : SceneNode {
+    
+	Mirror() : SceneNode() {
+        intensity = 1.0;
+        color = glm::vec3(1, 1, 1);
+        normal = glm::vec3(1, 0, 0); // Not working
+    }
+    
+    double intensity;
+    glm::vec3 color;
+    glm::vec3 normal;
+
+    float radius;
+    
+};
+
+
 SceneNode* createSceneNode();
 void addChild(SceneNode* parent, SceneNode* child);
 void printNode(SceneNode* node);
