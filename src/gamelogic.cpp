@@ -37,9 +37,24 @@ enum KeyFrameAction {
 };
 
 #include <timestamps.h>
+#include <cstdlib>
+#include <ctime>
 
-const float mirrorScale = 0.05;
-const int numMirrors = 50;
+int calculateShadows = 0;
+int showBox = 0;
+
+float pi = 3.1415926535897926462;
+float tau = 2 * pi;
+
+const float timeSpeedup = 0.2;
+
+const float mirrorScale = 0.025;
+const int numMirrors = 500;
+const float baseRadius = 40;
+const float randRadius = 20;
+const float maxInclination = 0.1; // of radius
+
+
 Mirror* mirrors[numMirrors];
 
 double padPositionX = 0;
@@ -69,7 +84,7 @@ sf::SoundBuffer* buffer;
 Gloom::Shader* shader;
 sf::Sound* sound;
 
-const glm::vec3 boxDimensions(180, 90, 180);
+const glm::vec3 boxDimensions(180, 90, 90);
 const glm::vec3 padDimensions(30, 3, 40);
 const glm::vec3 MirrorDimensions(3, 10, 10);
 
@@ -117,6 +132,10 @@ void mouseCallback(GLFWwindow* window, double x, double y) {
     glfwSetCursorPos(window, windowWidth / 2, windowHeight / 2);
 }
 
+float random() {
+    return (float)(rand() % 10000) / 10000.0;
+}
+
 
 unsigned int getTextureID(PNGImage texture) {
     unsigned int texID;
@@ -145,6 +164,9 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     shader = new Gloom::Shader();
     shader->makeBasicShader("../res/shaders/simple.vert", "../res/shaders/simple.frag");
     shader->activate();
+
+    // Init rand
+    srand(time(0));
 
     // Loading textures
     PNGImage charMap = loadPNGFile("../res/textures/charmap.png");
@@ -182,6 +204,10 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
         newMirror->vertexArrayObjectID = generateBuffer(pad);
         newMirror->VAOIndexCount = pad.indices.size();
 
+        newMirror->radius = baseRadius + randRadius * random();
+        newMirror->inclination = newMirror->radius * maxInclination * random();
+        newMirror->LAN = tau * random();
+
         mirrors[i] = newMirror;
     }
     
@@ -212,28 +238,32 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     lightNode3->nodeType = POINT_LIGHT;
 
     textNode->position = glm::vec3(0, 0, -110);
-    lightNode0->position = glm::vec3(0.6, -0.3, -0.3);
-    lightNode1->position = glm::vec3(0.2, -0.3, -0.3);
-    lightNode2->position = glm::vec3(-0.2, -0.3, -0.3);
+    lightNode0->position = glm::vec3(0.2, -0.3, -0.3);
+    lightNode1->position = glm::vec3(-0.2, -0.3, -0.3);
+    lightNode2->position = glm::vec3(-0.6, -0.3, -0.3);
     lightNode3->position = glm::vec3(0.0, 0.0, 0.0);
     
     starNode->position = glm::vec3(0, -20, -100);
 
 
-    lightNode0->color = glm::vec3(0.1, 0.2, 0.8); // Blue
+    lightNode0->color = glm::vec3(0.8, 0.2, 0.1); // Red
     lightNode1->color = glm::vec3(0.2, 0.8, 0.1); // Green
-    lightNode2->color = glm::vec3(0.8, 0.2, 0.1); // Red
-    lightNode2->intensity = 1.5f;
+    lightNode2->color = glm::vec3(0.1, 0.2, 0.8); // Blue
+    lightNode2->intensity = 0.3f;
+    lightNode2->intensity = 0.3f;
+    lightNode2->intensity = 0.3f;
 
-    lightNode3->color = glm::vec3(1, 1, 1); // White
-    lightNode3->intensity = 0.3f;
+    lightNode3->color = glm::vec3(0.9, 0.5, 0.0); // Hot orange
+    lightNode3->intensity = 3.0f;
 
-    rootNode->children.push_back(boxNode);
-    rootNode->children.push_back(padNode);
-    rootNode->children.push_back(ballNode);
+    if (showBox) {
+        rootNode->children.push_back(boxNode);
+    }
+    //rootNode->children.push_back(padNode);
+    //rootNode->children.push_back(ballNode);
     rootNode->children.push_back(starNode);
-    rootNode->children.push_back(textNode);
-    ballNode->children.push_back(lightNode3); // Moving light
+    //rootNode->children.push_back(textNode);
+    //ballNode->children.push_back(lightNode3); // Moving light
 
     boxNode->vertexArrayObjectID  = boxVAO;
     boxNode->VAOIndexCount        = box.indices.size();
@@ -442,49 +472,55 @@ void updateFrame(GLFWwindow* window) {
     updateNodeTransformations(rootNode, glm::identity<glm::mat4>(), VP);
 
     // Star
-    float t = totalElapsedTime;
-    float pi = 3.1415926535897926462;
+    float t = totalElapsedTime * timeSpeedup; // Adjustable simulated time
 
     float starSize = 10;
     starNode->position = glm::vec3(0, -20, -100);
     starNode->scale = glm::vec3(starSize, starSize, starSize);
     starNode->rotation = { 0, t/2, 0 };
 
+    lightNode2->position.x = 0.5-padPositionX;
+    lightNode2->position.y = -0.3;
+    lightNode2->position.z = 0.3-padPositionZ;
+
+    lightNode3->position = glm::vec3(0.0, 0.0, 0.0); // + starNode->position
     
     for (int i = 0; i < numMirrors; i++) {
-        float offset = 2*pi * i/numMirrors; // Offset from first mirror
-        float o = t + offset; // Orbit position, how far in the circular orbit each mirror is
 
-        mirrors[i]->position = starNode->position + glm::vec3(glm::sin(o) * 50, 0, glm::cos(o) * 50);
+        float inc = mirrors[i]->inclination;
+        float LAN = mirrors[i]->LAN; // Longitude of the ascending node (Inclination rotation offset)
+        float r = mirrors[i]->radius; // Orbital radius
+
+        float offset = tau * i/numMirrors; // Mean anomaly (Offset from first mirror)
+        float o = std::pow(r/baseRadius, -1.5) * t + offset; // Orbit position, how far in the circular orbit each mirror is
+
+        mirrors[i]->position = starNode->position + glm::vec3(
+            r * glm::sin(o),
+            inc * glm::sin(o + LAN),
+            r * glm::cos(o)
+        );
+
         mirrors[i]->scale = mirrorScale * glm::vec3(1, 1, 1);
-        mirrors[i]->rotation = { pi/2, o, 0 };
+        mirrors[i]->rotation = { tau/4, o, 0 };
 
     }
-    //mirrors[0]->position = starNode->position + glm::vec3(glm::sin(t-1) * 50, 0, glm::cos(t-1) * 50);
-    //mirrors[0]->scale = glm::vec3(0.1, 0.1, 0.1);
-    //mirrors[0]->rotation = { pi/2, 10*t, 0 };
 
 
     // --- Shader stuff for lighting --- //
 
-    // Passing a uniform to the vertex shader
+    // Passing a uniform to the vertex and fragment shaders
     glUniform3f(0, 0.5, 1.0, 1.5);
 
-    // Task 1f)
     float ambient = 0.05;
     glUniform1f(7, ambient);
+    
+    glUniform1i(10, calculateShadows);
 
     float boxSize = boxDimensions.y;
     glUniform3f(8, ballPosition.x/180, ballPosition.y/90, ballPosition.z/90);
 
 
-    // LightNode 3 didn't want to move with the pad, so I'm setting the positions manually here
-    lightNode3->position.x = 0.5-padPositionX;
-    lightNode3->position.y = -0.3;
-    lightNode3->position.z = 0.3-padPositionZ;
 
-
-    // Task 3
     // Setting light values
     
     /*
@@ -546,7 +582,7 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 modelTransformationThu
                 * glm::scale(node->scale)
             * glm::translate(-node->referencePoint);
 
-    // Task 1b) - Model Matrix
+    // Model Matrix
     node->currentTransformationMatrix = VP * modelTransformationThusFar * transformationMatrix;
     node->modelMatrix =                      modelTransformationThusFar * transformationMatrix;
 
@@ -564,7 +600,7 @@ void renderNode(SceneNode* node) {
     glUniformMatrix4fv(3, 1, GL_FALSE, glm::value_ptr(node->currentTransformationMatrix));
     glUniformMatrix4fv(4, 1, GL_FALSE, glm::value_ptr(node->modelMatrix));
 
-    // Task 1d) - Normal matrix
+    // Normal matrix
     // Object specific lighting
     glm::mat4 inverseModelMatrix = glm::inverse(node->modelMatrix);
     glm::mat3 inverseModelMatrix3f = glm::mat3(inverseModelMatrix);

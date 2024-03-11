@@ -25,6 +25,7 @@ uniform layout(location = 64) int is_textured;
 // Uniform/static value taken from updateFrame function
 uniform layout(location = 7) float ambient;
 uniform layout(location = 8) vec3 ball_pos;
+uniform layout(location = 10) int calculateShadows;
 float ball_radius = 0.1;
 
 
@@ -96,8 +97,12 @@ vec4 calculateFragmentColor(Light light) {
     specular_color = vec3(1, 1, 1);
 
     // Shadow
-    rejection = reject(light_pos - position, normalize(ball_pos - position));
-    shadow = isShadow(rejection, light_pos, position);
+    if (calculateShadows == 1) {
+        rejection = reject(light_pos - position, normalize(ball_pos - position));
+        shadow = isShadow(rejection, light_pos, position);
+    } else {
+        shadow = 0;
+    }
     
 
     // Shadow doesn't work correctly :(
@@ -110,7 +115,7 @@ vec4 calculateFragmentColor(Light light) {
     
     // Phong with dither, attenuation, and shadows
     return vec4((diffuse_intensity * diffuse_color // Diffuse
-              + specular_intensity * specular_color) // Specular
+              + 0.5 * specular_intensity * specular_color) // Specular
               * (1-shadow) * vec3(1, 1, 1), 1);
     
 }

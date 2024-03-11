@@ -89,7 +89,8 @@ struct Mirror : SceneNode {
     glm::vec3 normal;
 
     float radius;
-    
+    float LAN;
+    float inclination;
 };
 
 
