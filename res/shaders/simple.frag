@@ -21,6 +21,7 @@ out layout(location = 0) vec4 color;
 
 
 uniform layout(location = 64) int is_textured;
+uniform layout(location = 11) int is_fresnel;
 
 // Uniform/static value taken from updateFrame function
 uniform layout(location = 5) int is_instanced;
@@ -83,6 +84,12 @@ float shininess;
 float specular_intensity;
 float dither_intensity;
 
+float fresnel() {
+    surface_to_light = normalize(light_pos - position);
+    surface_to_camera = normalize(vec3(0, 0, 0) - position);
+    reflected_light = reflect(-surface_to_light, normal);
+    return clamp(0.5 - 0.5* dot(surface_to_camera, reflected_light), 0, 1);
+}
 
 vec4 calculateFragmentColor(Light light) {
     light_pos = light.position;
@@ -129,10 +136,15 @@ vec4 calculateFragmentColor(Light light) {
 
 void main()
 {
-    
-    
+    if (is_fresnel == 1) {
+        color = vec4(2.0 * fresnel() * vec3(1.0, 0.7, 0.0), 0.5 * fresnel());
+        return;
+    }
+        
     if (is_textured == 1) {
+        
         color = texture(tex, textureCoordinates);
+
         //color = vec4(1.0, 0.0, 0.0, 1.0);
         //color = vec4(textureCoordinates.x, textureCoordinates.y, 0.0, 1.0);
         return;

@@ -52,7 +52,7 @@ float tau = 2 * pi;
 
 const float timeSpeedup = 0.03;
 
-const float mirrorScale = 0.010;
+const float mirrorScale = 0.005;
 const int numMirrors = 500;
 const float baseRadius = 40;
 const float randRadius = 30;
@@ -63,7 +63,7 @@ glm::vec3 cameraPosition = glm::vec3(0, 0, -20);
 Mirror* mirrors[numMirrors];
 
 const int instances = 1000;
-const float instanceRandomSize = 150.0f;
+const float instanceRandomSize = 250.0f;
 glm::vec3 instanceOffset[instances];
 
 double padPositionX = 0;
@@ -80,6 +80,7 @@ SceneNode* rootNode;
 SceneNode* boxNode;
 SceneNode* ballNode;
 SceneNode* starNode;
+SceneNode* glowNode; // Fresnel for star
 SceneNode* padNode;
 SceneNode* textNode;
 
@@ -180,29 +181,43 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     // Init rand
     srand(time(0));
 
-    // Loading textures
-    PNGImage charMap = loadPNGFile("../res/textures/charmap.png");
-
-    GLuint texID = getTextureID(charMap);
-    
-    Mesh text = generateTextGeometryBuffer("[" + std::to_string((int)(numMirrors * instances)) + "]", 39./29., 29);
-    //std::cout << text.indices.size() << std::endl;
-    textNode = createSceneNode();
-    textNode->vertexArrayObjectID  = generateBuffer(text);
-    textNode->VAOIndexCount        = text.indices.size();
-    textNode->nodeType = TEXTURE;
-    textNode->texID = texID;
-
-    textNode->scale.x = 4;
-    textNode->scale.y = 4;
 
     // Create meshes
     Mesh pad = cube(padDimensions, glm::vec2(30, 40), true);
     Mesh box = cube(boxDimensions, glm::vec2(90), true, true);
     Mesh mirror = cube(boxDimensions, glm::vec2(90), true, true);
-    Mesh sphere = generateSphere(1.0, 40, 40);
+    Mesh sphere = generateSphere(0.5, 40, 40);
+    Mesh text = generateTextGeometryBuffer("[" + std::to_string((int)(numMirrors * instances)) + "]", 39./29., 29);
 
 
+    PNGImage charMap = loadPNGFile("../res/textures/charmap.png");
+    GLuint textTexID = getTextureID(charMap);
+
+    PNGImage sun_col = loadPNGFile("../res/textures/sun_col.png");
+    GLuint starTexID = getTextureID(sun_col);
+
+    textNode = createSceneNode();
+    textNode->vertexArrayObjectID  = generateBuffer(text);
+    textNode->VAOIndexCount        = text.indices.size();
+    textNode->nodeType = TEXTURE;
+    textNode->textureType = COLOR;
+    textNode->texID = textTexID;
+    textNode->scale.x = 4;
+    textNode->scale.y = 4;
+
+    //PNGImage sunTexture = loadPNGFile("../res/textures/8k_sun.png");
+    //GLuint sunTexID = getTextureID(sunTexture);
+    starNode = createSceneNode();
+    starNode->vertexArrayObjectID  = generateBuffer(sphere);
+    starNode->VAOIndexCount        = sphere.indices.size();
+    starNode->nodeType = TEXTURE;
+    starNode->textureType = COLOR;
+    starNode->texID = starTexID;
+
+    glowNode = createSceneNode();
+    glowNode->vertexArrayObjectID  = generateBuffer(sphere);
+    glowNode->VAOIndexCount        = sphere.indices.size();
+    glowNode->nodeType = FRESNEL;
 
     rootNode = createSceneNode();
 
@@ -231,8 +246,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     }
 
     // Fill buffers
-    unsigned int ballVAO = generateBuffer(sphere);
-    unsigned int starVAO = generateBuffer(sphere);
     unsigned int boxVAO  = generateBuffer(box);
     unsigned int padVAO  = generateBuffer(pad);
     unsigned int mirrorVAO  = generateBuffer(pad);
@@ -241,7 +254,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     boxNode  = createSceneNode();
     padNode  = createSceneNode();
     ballNode = createSceneNode();
-    starNode = createSceneNode();
     
     // Light source nodes
     lightNode0 = new PointLight();
@@ -261,6 +273,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     lightNode2->position = glm::vec3(-0.6, -0.3, -0.3);
     
     starNode->position = glm::vec3(0, 0, 0);
+    glowNode->position = glm::vec3(0, 0, 0);
+    glowNode->scale = glm::vec3(1.05, 1.05, 1.05);
 
 
     lightNode0->color = glm::vec3(0.8, 0.2, 0.1); // Red
@@ -277,22 +291,15 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     if (showBox) {
         rootNode->children.push_back(boxNode);
     }
-    //rootNode->children.push_back(padNode);
-    //rootNode->children.push_back(ballNode);
     rootNode->children.push_back(starNode);
     rootNode->children.push_back(textNode);
-    //ballNode->children.push_back(lightNode3); // Moving light
+    starNode->children.push_back(glowNode);
 
     boxNode->vertexArrayObjectID  = boxVAO;
     boxNode->VAOIndexCount        = box.indices.size();
 
     padNode->vertexArrayObjectID  = padVAO;
     padNode->VAOIndexCount        = pad.indices.size();
-
-    ballNode->vertexArrayObjectID = ballVAO;
-    ballNode->VAOIndexCount       = sphere.indices.size();
-    starNode->vertexArrayObjectID = ballVAO;
-    starNode->VAOIndexCount       = sphere.indices.size();
 
 
 
@@ -493,7 +500,7 @@ void updateFrame(GLFWwindow* window) {
     float starSize = 10;
     starNode->position = glm::vec3(0, -20, -100);
     starNode->scale = glm::vec3(starSize, starSize, starSize);
-    starNode->rotation = { 0, t/2, 0 };
+    starNode->rotation = { 0, t * 20, 0 };
 
     lightNode2->position.x = 0.5-padPositionX;
     lightNode2->position.y = -0.3;
@@ -629,8 +636,9 @@ void renderNode(SceneNode* node) {
         case GEOMETRY:
             if(node->vertexArrayObjectID != -1) {
                 glBindVertexArray(node->vertexArrayObjectID);
-                glUniform1i(64, 0);
-                glUniform1i(5, 0);
+                glUniform1i(64, 0); // is_textured = false
+                glUniform1i(5, 0); // is_instanced = false
+                glUniform1i(11, 0); // is_fresnel = false
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
             break;
@@ -638,8 +646,9 @@ void renderNode(SceneNode* node) {
         case INSTANCED:
             if(node->vertexArrayObjectID != -1) {
                 glBindVertexArray(node->vertexArrayObjectID);
-                glUniform1i(64, 0);
-                glUniform1i(5, 1);
+                glUniform1i(64, 0); // is_textured = false
+                glUniform1i(5, 1); // is_instanced = true
+                glUniform1i(11, 0); // is_fresnel = false
                 glDrawElementsInstanced(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, 0, instances);
             }
             break;
@@ -651,10 +660,25 @@ void renderNode(SceneNode* node) {
                 glBindTextureUnit(1, node->texID);
 
                 glBindVertexArray(node->vertexArrayObjectID);
-                glUniform1i(64, 1);
+                glUniform1i(64, 1); // is_textured = true
+                glUniform1i(5, 0); // is_instanced = false
+                glUniform1i(11, 0); // is_fresnel = false
+                glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
+            }
+        
+        case FRESNEL:
+            if(node->vertexArrayObjectID != -1) {
+                // 1366x768
+                glBindTextureUnit(1, node->texID);
+
+                glBindVertexArray(node->vertexArrayObjectID);
+                glUniform1i(64, 0); // is_textured = false
+                glUniform1i(5, 0); // is_instanced = false
+                glUniform1i(11, 1); // is_fresnel = true
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
             
+
             break;
         case POINT_LIGHT: break;
     }

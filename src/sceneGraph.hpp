@@ -14,7 +14,7 @@
 #include <fstream>
 
 enum SceneNodeType {
-	GEOMETRY, POINT_LIGHT, TEXTURE, INSTANCED
+	GEOMETRY, POINT_LIGHT, TEXTURE, INSTANCED, FRESNEL
 };
 
 enum TextureType {
