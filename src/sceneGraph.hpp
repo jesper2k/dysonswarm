@@ -14,7 +14,7 @@
 #include <fstream>
 
 enum SceneNodeType {
-	GEOMETRY, POINT_LIGHT, TEXTURE,
+	GEOMETRY, POINT_LIGHT, TEXTURE, INSTANCED
 };
 
 enum TextureType {
@@ -82,6 +82,7 @@ struct Mirror : SceneNode {
         intensity = 1.0;
         color = glm::vec3(1, 1, 1);
         normal = glm::vec3(1, 0, 0); // Not working
+        nodeType = INSTANCED;
     }
     
     double intensity;

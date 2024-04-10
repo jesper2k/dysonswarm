@@ -160,6 +160,7 @@ Mesh generateSphere(float sphereRadius, int slices, int layers) {
                                   sphereRadius * nextRadius * currentDirectionY,
                                   sphereRadius * nextZ);
 
+
             normals.emplace_back(radius * currentDirectionX,
                                  radius * currentDirectionY,
                                  currentZ);
@@ -186,6 +187,7 @@ Mesh generateSphere(float sphereRadius, int slices, int layers) {
             indices.emplace_back(i + 4);
             indices.emplace_back(i + 5);
 
+            // UV coordinates
             for (int j = 0; j < 6; j++) {
                 glm::vec3 vertex = vertices.at(i+j);
                 uvs.emplace_back(

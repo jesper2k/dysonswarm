@@ -7,6 +7,9 @@ Improve ugly code for manually setting each light position, color, and intensity
 Resources:
 - Instanced rendering for lots of mirrors: https://learnopengl.com/Advanced-OpenGL/Instancing
 
+
+
+
 */
 
 #include <chrono>
@@ -39,6 +42,7 @@ enum KeyFrameAction {
 #include <timestamps.h>
 #include <cstdlib>
 #include <ctime>
+#include <random>
 
 int calculateShadows = 0;
 int showBox = 0;
@@ -46,22 +50,30 @@ int showBox = 0;
 float pi = 3.1415926535897926462;
 float tau = 2 * pi;
 
-const float timeSpeedup = 0.2;
+const float timeSpeedup = 0.03;
 
-const float mirrorScale = 0.025;
+const float mirrorScale = 0.010;
 const int numMirrors = 500;
 const float baseRadius = 40;
-const float randRadius = 20;
-const float maxInclination = 0.1; // of radius
+const float randRadius = 30;
+const float maxInclination = 0.20; // of radius
 
+glm::vec3 cameraPosition = glm::vec3(0, 0, -20);
 
 Mirror* mirrors[numMirrors];
+
+const int instances = 1000;
+const float instanceRandomSize = 150.0f;
+glm::vec3 instanceOffset[instances];
 
 double padPositionX = 0;
 double padPositionZ = 0;
 
 unsigned int currentKeyFrame = 0;
 unsigned int previousKeyFrame = 0;
+
+std::default_random_engine generator;
+std::normal_distribution<double> normal(0.0, 1.0);
 
 
 SceneNode* rootNode;
@@ -173,7 +185,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     GLuint texID = getTextureID(charMap);
     
-    Mesh text = generateTextGeometryBuffer("Hello, world!", 39./29., 29);
+    Mesh text = generateTextGeometryBuffer("[" + std::to_string((int)(numMirrors * instances)) + "]", 39./29., 29);
     //std::cout << text.indices.size() << std::endl;
     textNode = createSceneNode();
     textNode->vertexArrayObjectID  = generateBuffer(text);
@@ -181,8 +193,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     textNode->nodeType = TEXTURE;
     textNode->texID = texID;
 
-    textNode->scale.x = 10;
-    textNode->scale.y = 10;
+    textNode->scale.x = 4;
+    textNode->scale.y = 4;
 
     // Create meshes
     Mesh pad = cube(padDimensions, glm::vec2(30, 40), true);
@@ -210,7 +222,13 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
         mirrors[i] = newMirror;
     }
-    
+
+    // Setting up the offet array
+    for (int i = 0; i < instances; i++) {
+        float IRS = instanceRandomSize;
+        instanceOffset[i] = {IRS * 5 * normal(generator), IRS * normal(generator), IRS * normal(generator)};
+        glUniform3fv(shader->getUniformFromName("instanceOffset[" +  std::to_string(i) + "]"), 1, glm::value_ptr(instanceOffset[i]));
+    }
 
     // Fill buffers
     unsigned int ballVAO = generateBuffer(sphere);
@@ -237,24 +255,24 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     lightNode2->nodeType = POINT_LIGHT;
     lightNode3->nodeType = POINT_LIGHT;
 
-    textNode->position = glm::vec3(0, 0, -110);
+    textNode->position = glm::vec3(-60, 0, -150);
     lightNode0->position = glm::vec3(0.2, -0.3, -0.3);
     lightNode1->position = glm::vec3(-0.2, -0.3, -0.3);
     lightNode2->position = glm::vec3(-0.6, -0.3, -0.3);
-    lightNode3->position = glm::vec3(0.0, 0.0, 0.0);
     
-    starNode->position = glm::vec3(0, -20, -100);
+    starNode->position = glm::vec3(0, 0, 0);
 
 
     lightNode0->color = glm::vec3(0.8, 0.2, 0.1); // Red
     lightNode1->color = glm::vec3(0.2, 0.8, 0.1); // Green
-    lightNode2->color = glm::vec3(0.1, 0.2, 0.8); // Blue
-    lightNode2->intensity = 0.3f;
-    lightNode2->intensity = 0.3f;
-    lightNode2->intensity = 0.3f;
+    lightNode2->color = glm::vec3(0.9, 0.3, 0.0); // Intense red
+    lightNode2->intensity = 10.3f;
+    lightNode2->intensity = 10.3f;
+    lightNode2->intensity = 4.3f;
 
+    lightNode3->position = cameraPosition + glm::vec3(0, -0.5, 0);
     lightNode3->color = glm::vec3(0.9, 0.5, 0.0); // Hot orange
-    lightNode3->intensity = 3.0f;
+    lightNode3->intensity = 6.0f;
 
     if (showBox) {
         rootNode->children.push_back(boxNode);
@@ -262,7 +280,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     //rootNode->children.push_back(padNode);
     //rootNode->children.push_back(ballNode);
     rootNode->children.push_back(starNode);
-    //rootNode->children.push_back(textNode);
+    rootNode->children.push_back(textNode);
     //ballNode->children.push_back(lightNode3); // Moving light
 
     boxNode->vertexArrayObjectID  = boxVAO;
@@ -444,8 +462,6 @@ void updateFrame(GLFWwindow* window) {
 
     glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 350.f);
 
-    glm::vec3 cameraPosition = glm::vec3(0, 2, -10);
-
     // Some fancy math to make the camera move in a nice way
     float lookRotation = -0.6 / (1 + exp(-5 * (padPositionX-0.5))) + 0.3;
     glm::mat4 cameraTransform =
@@ -550,6 +566,7 @@ void updateFrame(GLFWwindow* window) {
     glUniform3fv(shader->getUniformFromName("lights[0].position"),  1, glm::value_ptr(lightNode0->position));
     glUniform1f( shader->getUniformFromName("lights[0].intensity"),                   lightNode0->intensity);
 
+
     glUniform3fv(shader->getUniformFromName("lights[1].color"),     1, glm::value_ptr(lightNode1->color));
     glUniform3fv(shader->getUniformFromName("lights[1].position"),  1, glm::value_ptr(lightNode1->position));
     glUniform1f( shader->getUniformFromName("lights[1].intensity"),                   lightNode1->intensity);
@@ -588,6 +605,7 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 modelTransformationThu
 
     switch(node->nodeType) {
         case GEOMETRY: break;
+        case INSTANCED: break;
         case POINT_LIGHT: break;
     }
 
@@ -612,18 +630,31 @@ void renderNode(SceneNode* node) {
             if(node->vertexArrayObjectID != -1) {
                 glBindVertexArray(node->vertexArrayObjectID);
                 glUniform1i(64, 0);
+                glUniform1i(5, 0);
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
             break;
-        case TEXTURE:
-            
-            /*
+
+        case INSTANCED:
             if(node->vertexArrayObjectID != -1) {
+                glBindVertexArray(node->vertexArrayObjectID);
+                glUniform1i(64, 0);
+                glUniform1i(5, 1);
+                glDrawElementsInstanced(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, 0, instances);
+            }
+            break;
+
+            
+        case TEXTURE:
+            if(node->vertexArrayObjectID != -1) {
+                // 1366x768
+                glBindTextureUnit(1, node->texID);
+
                 glBindVertexArray(node->vertexArrayObjectID);
                 glUniform1i(64, 1);
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
             }
-            */
+            
             break;
         case POINT_LIGHT: break;
     }

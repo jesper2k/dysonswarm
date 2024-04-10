@@ -23,10 +23,14 @@ out layout(location = 0) vec4 color;
 uniform layout(location = 64) int is_textured;
 
 // Uniform/static value taken from updateFrame function
+uniform layout(location = 5) int is_instanced;
 uniform layout(location = 7) float ambient;
 uniform layout(location = 8) vec3 ball_pos;
-uniform layout(location = 10) int calculateShadows;
+//uniform layout(location = 10) int calculateShadows;
 float ball_radius = 0.1;
+
+// Texture
+layout(binding = 1) uniform sampler2D tex;
 
 
 // Helper functions
@@ -34,6 +38,7 @@ float rand(vec2 co) { return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758
 float dither(vec2 uv) { return (rand(uv)*2.0-1.0) / 256.0; }
 vec3 reject(vec3 from, vec3 onto) { return from - onto*dot(from, onto)/dot(onto, onto); }
 
+/*
 float shadow;
 vec3 shadowDebug;
 
@@ -61,6 +66,7 @@ float isShadow(vec3 rejection, vec3 light_pos, vec3 position) {
 
     return shadow;
 }
+*/
 
 vec3 surface_to_light;
 vec3 surface_to_camera;
@@ -97,13 +103,14 @@ vec4 calculateFragmentColor(Light light) {
     specular_color = vec3(1, 1, 1);
 
     // Shadow
+    /*
     if (calculateShadows == 1) {
         rejection = reject(light_pos - position, normalize(ball_pos - position));
         shadow = isShadow(rejection, light_pos, position);
     } else {
         shadow = 0;
     }
-    
+    */
 
     // Shadow doesn't work correctly :(
     // I'm guessing it's due to a wacky perspective projection that's not done correctly
@@ -116,19 +123,21 @@ vec4 calculateFragmentColor(Light light) {
     // Phong with dither, attenuation, and shadows
     return vec4((diffuse_intensity * diffuse_color // Diffuse
               + 0.5 * specular_intensity * specular_color) // Specular
-              * (1-shadow) * vec3(1, 1, 1), 1);
+              * (1/*-shadow*/) * vec3(1, 1, 1), 1);
     
 }
 
 void main()
 {
     
-    /*
+    
     if (is_textured == 1) {
-        color = vec4(1.0, 0.0, 0.0, 1.0);
+        color = texture(tex, textureCoordinates);
+        //color = vec4(1.0, 0.0, 0.0, 1.0);
+        //color = vec4(textureCoordinates.x, textureCoordinates.y, 0.0, 1.0);
         return;
     }
-    */
+    
 
 
     dither_intensity = dither(textureCoordinates);
