@@ -22,7 +22,11 @@ enum TextureType {
 };
 
 struct SceneConfig {
+    int numMirrors;
     int instances;
+    float mirrorSize;
+    std::string starTextureFile;
+    std::string mirrorModel;
 };
 
 

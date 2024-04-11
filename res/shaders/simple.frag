@@ -137,7 +137,7 @@ vec4 calculateFragmentColor(Light light) {
 void main()
 {
     if (is_fresnel == 1) {
-        color = vec4(2.0 * fresnel() * vec3(1.0, 0.7, 0.0), 0.5 * fresnel());
+        color = vec4(2.0 * fresnel() * vec3(0.6, 0.2, 1.0), 0.5 * fresnel());
         return;
     }
         

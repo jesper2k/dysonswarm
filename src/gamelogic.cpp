@@ -55,32 +55,45 @@ float tau = 2 * pi;
 int scene = 1;
 SceneConfig sceneConfigs[3] = {
     {
-        /*Instances per object*/ 10
+        /* Mirror objects */                50,
+        /* Instances per object */          10,
+        /* Mirror size */                   0.050,
+        /* Star texture filename */         "sun_col.png",
+        /* Mirror model filename */         "hex.obj",
     },
     {
-        100
+        200,
+        50,
+        0.015,
+        "neutronstar.png",
+        "fan.obj",
     },
     {
-        1000
+        500,
+        1000,
+        0.005,
+        "sun_col.png",
+        "hex.obj",
     },
 };
 
 
 
-const float timeSpeedup = 0.03;
+const float timeSpeedup = 0.25; // 0.03
 
-const float mirrorScale = 0.005;
-const int numMirrors = 500;
-const float baseRadius = 50;
-const float randRadius = 20;
-const float maxInclination = 0.30; // of radius
+float mirrorScale = sceneConfigs[scene].mirrorSize;
+int numMirrors = sceneConfigs[scene].numMirrors;
+const int maxNumMirrors = 500;
+const float baseRadius = 40;
+const float randRadius = 60;
+const float maxInclination = 0.35; // of radius
 
-glm::vec3 cameraPosition = glm::vec3(0, 0, -20);
+glm::vec3 cameraPosition = glm::vec3(0, 15, -10);
 
-Mirror* mirrors[500];
+Mirror* mirrors[maxNumMirrors];
 
 int instances = sceneConfigs[scene].instances;
-const float instanceRandomSize = 400.0f;
+const float instanceRandomSize = 150.0f;
 glm::vec3 instanceOffset[1000];
 
 double padPositionX = 0;
@@ -191,7 +204,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     sound->setBuffer(*buffer);
     //sf::Time startTime = sf::seconds(debug_startTime);
     //sound->setPlayingOffset(startTime);
-    sound->play();
+    //sound->play();
 
 
     options = gameOptions;
@@ -220,7 +233,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glCullFace(GL_FRONT);
     */
     
-    Mesh mirrorModel = loadObj("../res/models/hex2sided.obj");
+    //Mesh mirrorModel = loadObj("../res/models/hex2sided.obj");
+    Mesh mirrorModel = loadObj("../res/models/" + sceneConfigs[scene].mirrorModel);
     Mesh model = mirrorModel;
 
     std::cout << "spis meg py" << std::endl;
@@ -228,8 +242,10 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     PNGImage charMap = loadPNGFile("../res/textures/charmap.png");
     GLuint textTexID = getTextureID(charMap);
 
-    PNGImage sun_col = loadPNGFile("../res/textures/sun_col.png");
-    GLuint starTexID = getTextureID(sun_col);
+    ;
+    //PNGImage sun_col = loadPNGFile("../res/textures/sun_col.png");
+    PNGImage starTex = loadPNGFile("../res/textures/" + sceneConfigs[scene].starTextureFile);
+    GLuint starTexID = getTextureID(starTex);
 
     textNode = createSceneNode();
     textNode->vertexArrayObjectID  = generateBuffer(text);
@@ -326,16 +342,22 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glowNode3->position = glm::vec3(0, 0, 0);
     glowNode3->scale = glm::vec3(1.15, 1.15, 1.15);
 
+    
+    lightNode0->color = glm::vec3(0.2, 0.2, 0.9); // Red
+    lightNode1->color = glm::vec3(0.2, 0.8, 0.9); // Green
+    lightNode2->color = glm::vec3(0.2, 0.3, 0.9); // Intense red
 
+    /*
     lightNode0->color = glm::vec3(0.8, 0.2, 0.1); // Red
     lightNode1->color = glm::vec3(0.2, 0.8, 0.1); // Green
     lightNode2->color = glm::vec3(0.9, 0.3, 0.0); // Intense red
+    */
     lightNode2->intensity = 10.3f;
     lightNode2->intensity = 10.3f;
     lightNode2->intensity = 4.3f;
 
     lightNode3->position = cameraPosition + glm::vec3(0, -0.5, 0);
-    lightNode3->color = glm::vec3(0.9, 0.5, 0.0); // Hot orange
+    lightNode3->color = glm::vec3(0.8, 0.8, 1.0); // Hot orange
     lightNode3->intensity = 6.0f;
 
     if (showBox) {
@@ -345,7 +367,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     rootNode->children.push_back(textNode);
     starNode->children.push_back(glowNode);
     starNode->children.push_back(glowNode2);
-    starNode->children.push_back(glowNode3);
+    //starNode->children.push_back(glowNode3);
 
     boxNode->vertexArrayObjectID  = boxVAO;
     boxNode->VAOIndexCount        = box.indices.size();
@@ -557,7 +579,7 @@ void updateFrame(GLFWwindow* window) {
     float starSize = 10;
     starNode->position = glm::vec3(0, -20, -100);
     starNode->scale = glm::vec3(starSize, starSize, starSize);
-    starNode->rotation = { 0, t * 20, 0 };
+    starNode->rotation = { 0, t * 10, 0 };
 
     lightNode2->position.x = 0.5-padPositionX;
     lightNode2->position.y = -0.3;
