@@ -21,6 +21,11 @@ enum TextureType {
 	COLOR, NORMAL, ROUGHNESS,
 };
 
+struct SceneConfig {
+    int instances;
+};
+
+
 struct SceneNode {
 	SceneNode() {
 		position = glm::vec3(0, 0, 0);

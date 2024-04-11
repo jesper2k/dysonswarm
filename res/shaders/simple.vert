@@ -27,6 +27,7 @@ void main()
 
     textureCoordinates_out = textureCoordinates_in;
     if (is_instanced == 1) {
+        // How do i rotate this a little bit? (based on x-offset + some randomness)
         gl_Position = MVP * vec4(position + instanceOffset[gl_InstanceID], 1.0f);
     } else {
         gl_Position = MVP * vec4(position, 1.0f);

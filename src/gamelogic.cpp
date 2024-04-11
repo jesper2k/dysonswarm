@@ -50,21 +50,38 @@ int showBox = 0;
 float pi = 3.1415926535897926462;
 float tau = 2 * pi;
 
+
+// Scene setup
+int scene = 1;
+SceneConfig sceneConfigs[3] = {
+    {
+        /*Instances per object*/ 10
+    },
+    {
+        100
+    },
+    {
+        1000
+    },
+};
+
+
+
 const float timeSpeedup = 0.03;
 
 const float mirrorScale = 0.005;
 const int numMirrors = 500;
-const float baseRadius = 40;
-const float randRadius = 30;
-const float maxInclination = 0.20; // of radius
+const float baseRadius = 50;
+const float randRadius = 20;
+const float maxInclination = 0.30; // of radius
 
 glm::vec3 cameraPosition = glm::vec3(0, 0, -20);
 
-Mirror* mirrors[numMirrors];
+Mirror* mirrors[500];
 
-const int instances = 1000;
-const float instanceRandomSize = 250.0f;
-glm::vec3 instanceOffset[instances];
+int instances = sceneConfigs[scene].instances;
+const float instanceRandomSize = 400.0f;
+glm::vec3 instanceOffset[1000];
 
 double padPositionX = 0;
 double padPositionZ = 0;
@@ -81,6 +98,8 @@ SceneNode* boxNode;
 SceneNode* ballNode;
 SceneNode* starNode;
 SceneNode* glowNode; // Fresnel for star
+SceneNode* glowNode2; // Fresnel for star
+SceneNode* glowNode3; // Fresnel for star
 SceneNode* padNode;
 SceneNode* textNode;
 
@@ -106,7 +125,7 @@ glm::vec3 ballDirection(1, 1, 0.2f);
 
 CommandLineOptions options;
 
-bool hasStarted        = false;
+bool hasStarted        = true;
 bool hasLost           = false;
 bool jumpedToNextFrame = false;
 bool isPaused          = false;
@@ -115,7 +134,6 @@ bool mouseLeftPressed   = false;
 bool mouseLeftReleased  = false;
 bool mouseRightPressed  = false;
 bool mouseRightReleased = false;
-
 
 
 // Modify if you want the music to start further on in the track. Measured in seconds.
@@ -165,9 +183,16 @@ unsigned int getTextureID(PNGImage texture) {
 
 void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     buffer = new sf::SoundBuffer();
-    if (!buffer->loadFromFile("../res/Hall of the Mountain King.ogg")) {
+    if (!buffer->loadFromFile("../res/DSP_main_theme.ogg")) {
         return;
     }
+    
+    sound = new sf::Sound();
+    sound->setBuffer(*buffer);
+    //sf::Time startTime = sf::seconds(debug_startTime);
+    //sound->setPlayingOffset(startTime);
+    sound->play();
+
 
     options = gameOptions;
 
@@ -183,12 +208,22 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
 
     // Create meshes
-    Mesh pad = cube(padDimensions, glm::vec2(30, 40), true);
+    Mesh mirror = cube(padDimensions, glm::vec2(30, 40), true);
     Mesh box = cube(boxDimensions, glm::vec2(90), true, true);
-    Mesh mirror = cube(boxDimensions, glm::vec2(90), true, true);
-    Mesh sphere = generateSphere(0.5, 40, 40);
+    Mesh sphere = generateSphere(1.0, 40, 40);
     Mesh text = generateTextGeometryBuffer("[" + std::to_string((int)(numMirrors * instances)) + "]", 39./29., 29);
 
+    
+    //glDisable(GL_CULL_FACE);  
+    /*
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    */
+    
+    Mesh mirrorModel = loadObj("../res/models/hex2sided.obj");
+    Mesh model = mirrorModel;
+
+    std::cout << "spis meg py" << std::endl;
 
     PNGImage charMap = loadPNGFile("../res/textures/charmap.png");
     GLuint textTexID = getTextureID(charMap);
@@ -202,8 +237,10 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     textNode->nodeType = TEXTURE;
     textNode->textureType = COLOR;
     textNode->texID = textTexID;
-    textNode->scale.x = 4;
-    textNode->scale.y = 4;
+
+    // Text disabled
+    textNode->scale.x = 0;
+    textNode->scale.y = 0;
 
     //PNGImage sunTexture = loadPNGFile("../res/textures/8k_sun.png");
     //GLuint sunTexID = getTextureID(sunTexture);
@@ -218,6 +255,16 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glowNode->vertexArrayObjectID  = generateBuffer(sphere);
     glowNode->VAOIndexCount        = sphere.indices.size();
     glowNode->nodeType = FRESNEL;
+    
+    glowNode2 = createSceneNode();
+    glowNode2->vertexArrayObjectID  = generateBuffer(sphere);
+    glowNode2->VAOIndexCount        = sphere.indices.size();
+    glowNode2->nodeType = FRESNEL;
+    
+    glowNode3 = createSceneNode();
+    glowNode3->vertexArrayObjectID  = generateBuffer(sphere);
+    glowNode3->VAOIndexCount        = sphere.indices.size();
+    glowNode3->nodeType = FRESNEL;
 
     rootNode = createSceneNode();
 
@@ -228,8 +275,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
         newMirror->position = glm::vec3(0, 0, 0);
         rootNode->children.push_back(newMirror);
         
-        newMirror->vertexArrayObjectID = generateBuffer(pad);
-        newMirror->VAOIndexCount = pad.indices.size();
+        newMirror->vertexArrayObjectID = generateBuffer(model);
+        newMirror->VAOIndexCount = model.indices.size();
 
         newMirror->radius = baseRadius + randRadius * random();
         newMirror->inclination = newMirror->radius * maxInclination * random();
@@ -247,8 +294,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     // Fill buffers
     unsigned int boxVAO  = generateBuffer(box);
-    unsigned int padVAO  = generateBuffer(pad);
-    unsigned int mirrorVAO  = generateBuffer(pad);
+    unsigned int padVAO  = generateBuffer(mirror);
 
     // Construct scene
     boxNode  = createSceneNode();
@@ -274,7 +320,11 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     
     starNode->position = glm::vec3(0, 0, 0);
     glowNode->position = glm::vec3(0, 0, 0);
-    glowNode->scale = glm::vec3(1.05, 1.05, 1.05);
+    glowNode->scale = glm::vec3(1.01, 1.01, 1.01);
+    glowNode2->position = glm::vec3(0, 0, 0);
+    glowNode2->scale = glm::vec3(1.05, 1.05, 1.05);
+    glowNode3->position = glm::vec3(0, 0, 0);
+    glowNode3->scale = glm::vec3(1.15, 1.15, 1.15);
 
 
     lightNode0->color = glm::vec3(0.8, 0.2, 0.1); // Red
@@ -294,12 +344,14 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     rootNode->children.push_back(starNode);
     rootNode->children.push_back(textNode);
     starNode->children.push_back(glowNode);
+    starNode->children.push_back(glowNode2);
+    starNode->children.push_back(glowNode3);
 
     boxNode->vertexArrayObjectID  = boxVAO;
     boxNode->VAOIndexCount        = box.indices.size();
 
     padNode->vertexArrayObjectID  = padVAO;
-    padNode->VAOIndexCount        = pad.indices.size();
+    padNode->VAOIndexCount        = mirror.indices.size();
 
 
 
@@ -345,11 +397,13 @@ void updateFrame(GLFWwindow* window) {
     if(!hasStarted) {
         if (mouseLeftPressed) {
             if (options.enableMusic) {
+                /*
                 sound = new sf::Sound();
                 sound->setBuffer(*buffer);
                 sf::Time startTime = sf::seconds(debug_startTime);
                 sound->setPlayingOffset(startTime);
                 sound->play();
+                */
             }
             totalElapsedTime = debug_startTime;
             gameElapsedTime = debug_startTime;
@@ -361,10 +415,11 @@ void updateFrame(GLFWwindow* window) {
         ballPosition.z = ballMinZ + (1 - padPositionZ) * ((ballMaxZ+cameraWallOffset) - ballMinZ);
     } else {
         totalElapsedTime += timeDelta;
+        
         if(hasLost) {
             if (mouseLeftReleased) {
                 hasLost = false;
-                hasStarted = false;
+                //hasStarted = false;
                 currentKeyFrame = 0;
                 previousKeyFrame = 0;
             }
@@ -372,15 +427,15 @@ void updateFrame(GLFWwindow* window) {
             if (mouseRightReleased) {
                 isPaused = false;
                 if (options.enableMusic) {
-                    sound->play();
+                    //sound->play();
                 }
             }
         } else {
             gameElapsedTime += timeDelta;
             if (mouseRightReleased) {
-                isPaused = true;
+                //isPaused = true;
                 if (options.enableMusic) {
-                    sound->pause();
+                    //sound->pause();
                 }
             }
             // Get the timing for the beat of the song
@@ -459,8 +514,10 @@ void updateFrame(GLFWwindow* window) {
                 ) {
                     hasLost = true;
                     if (options.enableMusic) {
+                        /*
                         sound->stop();
                         delete sound;
+                        */
                     }
                 }
             }
