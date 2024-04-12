@@ -45,7 +45,6 @@ enum KeyFrameAction {
 #include <random>
 
 int calculateShadows = 0;
-int showBox = 0;
 
 float pi = 3.1415926535897926462;
 float tau = 2 * pi;
@@ -55,18 +54,20 @@ float tau = 2 * pi;
 int scene = 1;
 SceneConfig sceneConfigs[3] = {
     {
-        /* Mirror objects */                50,
-        /* Instances per object */          10,
-        /* Mirror size */                   0.050,
-        /* Star texture filename */         "sun_col.png",
-        /* Mirror model filename */         "hex.obj",
+        /* Mirror objects                */ 50,
+        /* Instances per object          */ 10,
+        /* Mirror size                   */ 0.020,
+        /* Star texture filename         */ "sun_col.png",
+        /* Mirror model filename         */ "hex.obj",
+        /* Fresnel color                 */ glm::vec3(0.9, 0.5, 0.1),
     },
     {
+        500,
         200,
-        50,
-        0.015,
+        0.003,
         "neutronstar.png",
-        "fan.obj",
+        "hex.obj",
+        glm::vec3(0.6, 0.2, 1.0),
     },
     {
         500,
@@ -74,6 +75,7 @@ SceneConfig sceneConfigs[3] = {
         0.005,
         "sun_col.png",
         "hex.obj",
+        glm::vec3(1.0, 0.4, 0.0),
     },
 };
 
@@ -83,17 +85,18 @@ const float timeSpeedup = 0.25; // 0.03
 
 float mirrorScale = sceneConfigs[scene].mirrorSize;
 int numMirrors = sceneConfigs[scene].numMirrors;
-const int maxNumMirrors = 500;
-const float baseRadius = 40;
-const float randRadius = 60;
-const float maxInclination = 0.35; // of radius
+const int maxNumMirrors = 500; // Config todo
+const float baseRadius = 40; // Config todo
+const float randRadius = 60;// Config todo
+const float maxInclination = 0.15; // of radius
+glm::vec3 fresnelColor = sceneConfigs[scene].fresnelColor;
 
-glm::vec3 cameraPosition = glm::vec3(0, 15, -10);
+glm::vec3 cameraPosition = glm::vec3(0, 20, 100);
 
 Mirror* mirrors[maxNumMirrors];
 
 int instances = sceneConfigs[scene].instances;
-const float instanceRandomSize = 150.0f;
+const float instanceRandomSize = 400.0f;// Config todo
 glm::vec3 instanceOffset[1000];
 
 double padPositionX = 0;
@@ -105,6 +108,9 @@ unsigned int previousKeyFrame = 0;
 std::default_random_engine generator;
 std::normal_distribution<double> normal(0.0, 1.0);
 
+float random() {
+    return (float)(rand() % 10000) / 10000.0;
+}
 
 SceneNode* rootNode;
 SceneNode* boxNode;
@@ -123,6 +129,7 @@ PointLight* lightNode3;
 PointLight* lights[4];
 
 double ballRadius = 3.0f;
+
 
 // These are heap allocated, because they should not be initialised at the start of the program
 sf::SoundBuffer* buffer;
@@ -148,6 +155,20 @@ bool mouseLeftReleased  = false;
 bool mouseRightPressed  = false;
 bool mouseRightReleased = false;
 
+const int numKeys = 11;
+KeyValue keyDown[numKeys] = {
+    { GLFW_KEY_1, false }, // Scene 1
+    { GLFW_KEY_2, false }, // Scene 2
+    { GLFW_KEY_3, false }, // Scene 3
+    { GLFW_KEY_W, false }, // Move forward
+    { GLFW_KEY_A, false }, // Move left
+    { GLFW_KEY_S, false }, // Move Back
+    { GLFW_KEY_D, false }, // Move right
+    { GLFW_KEY_Q, false }, // Move down
+    { GLFW_KEY_E, false }, // Move up
+    { GLFW_KEY_LEFT_SHIFT, false }, // Move faster
+    { GLFW_KEY_B, false }, // Toggle bloom
+};
 
 // Modify if you want the music to start further on in the track. Measured in seconds.
 const float debug_startTime = 0;
@@ -157,6 +178,12 @@ double gameElapsedTime = debug_startTime;
 double mouseSensitivity = 1.0;
 double lastMouseX = windowWidth / 2;
 double lastMouseY = windowHeight / 2;
+float lookDirectionX = 0.0;
+float lookDirectionY = 0.0;
+
+float movementSpeed = 1.0;
+float movementSpeedAmplified = 3.0;
+
 void mouseCallback(GLFWwindow* window, double x, double y) {
     int windowWidth, windowHeight;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);
@@ -164,21 +191,64 @@ void mouseCallback(GLFWwindow* window, double x, double y) {
 
     double deltaX = x - lastMouseX;
     double deltaY = y - lastMouseY;
+    
+    lookDirectionX += 0.01 * mouseSensitivity * deltaX;
+    lookDirectionY += 0.01 * mouseSensitivity * deltaY;
+
+
+    lookDirectionX = fmod(lookDirectionX, tau);
+
+    // Limit view to 90 degrees up and down to prevent wack stuff
+    if (lookDirectionY > tau/4) lookDirectionY = tau/4;//tau/4;
+    if (lookDirectionY < -tau/4) lookDirectionY = -tau/4;//-tau/4; 
+
+
 
     padPositionX -= mouseSensitivity * deltaX / windowWidth;
     padPositionZ -= mouseSensitivity * deltaY / windowHeight;
 
+    /*
     if (padPositionX > 1) padPositionX = 1;
     if (padPositionX < 0) padPositionX = 0;
     if (padPositionZ > 1) padPositionZ = 1;
     if (padPositionZ < 0) padPositionZ = 0;
+    */
 
     glfwSetCursorPos(window, windowWidth / 2, windowHeight / 2);
 }
 
-float random() {
-    return (float)(rand() % 10000) / 10000.0;
+// Keypress status handler
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    /*
+    // Simple example
+    if (key == GLFW_KEY_E && action == GLFW_PRESS) {
+        std::cout << "key E pressed" << std::endl;
+    }
+    */
+
+    
+    for (int i = 0; i < numKeys; i++) {
+        if (key == keyDown[i].key && action == GLFW_PRESS)   {
+            keyDown[i].value = true;
+            //std::cout << std::to_string(keyDown[i].key) + " : " << keyDown[i].value << std::endl;
+        }
+        if (key == keyDown[i].key && action == GLFW_RELEASE) {
+            keyDown[i].value = false;
+            //std::cout << std::to_string(keyDown[i].key) + " : " << keyDown[i].value << std::endl;
+        }
+    }
+    
 }
+
+bool isKeyDown(int keyCode) {
+    for (int i = 0; i < numKeys; i++) {
+        if (keyDown[i].key == keyCode && keyDown[i].value == true) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 
 unsigned int getTextureID(PNGImage texture) {
@@ -211,6 +281,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
     glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetKeyCallback(window, keyCallback);
 
     shader = new Gloom::Shader();
     shader->makeBasicShader("../res/shaders/simple.vert", "../res/shaders/simple.frag");
@@ -218,7 +289,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     // Init rand
     srand(time(0));
-
 
     // Create meshes
     Mesh mirror = cube(padDimensions, glm::vec2(30, 40), true);
@@ -232,6 +302,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     */
+    glUniform3f(9, fresnelColor.x, fresnelColor.y, fresnelColor.z);
     
     //Mesh mirrorModel = loadObj("../res/models/hex2sided.obj");
     Mesh mirrorModel = loadObj("../res/models/" + sceneConfigs[scene].mirrorModel);
@@ -241,8 +312,10 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     PNGImage charMap = loadPNGFile("../res/textures/charmap.png");
     GLuint textTexID = getTextureID(charMap);
+    PNGImage skybox = loadPNGFile("../res/textures/skybox.png");
+    GLuint skyboxTexID = getTextureID(skybox);
 
-    ;
+    
     //PNGImage sun_col = loadPNGFile("../res/textures/sun_col.png");
     PNGImage starTex = loadPNGFile("../res/textures/" + sceneConfigs[scene].starTextureFile);
     GLuint starTexID = getTextureID(starTex);
@@ -329,12 +402,20 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     lightNode2->nodeType = POINT_LIGHT;
     lightNode3->nodeType = POINT_LIGHT;
 
+    // Config todo
     textNode->position = glm::vec3(-60, 0, -150);
     lightNode0->position = glm::vec3(0.2, -0.3, -0.3);
     lightNode1->position = glm::vec3(-0.2, -0.3, -0.3);
     lightNode2->position = glm::vec3(-0.6, -0.3, -0.3);
     
+    rootNode->position = glm::vec3(0, 0, 0);
+
+    float starSize = 10; // Config todo
+    starNode->scale = glm::vec3(starSize, starSize, starSize);
     starNode->position = glm::vec3(0, 0, 0);
+
+
+    // Config todo
     glowNode->position = glm::vec3(0, 0, 0);
     glowNode->scale = glm::vec3(1.01, 1.01, 1.01);
     glowNode2->position = glm::vec3(0, 0, 0);
@@ -343,39 +424,44 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glowNode3->scale = glm::vec3(1.15, 1.15, 1.15);
 
     
+    // Config todo
+    /*
     lightNode0->color = glm::vec3(0.2, 0.2, 0.9); // Red
     lightNode1->color = glm::vec3(0.2, 0.8, 0.9); // Green
     lightNode2->color = glm::vec3(0.2, 0.3, 0.9); // Intense red
+    */
 
-    /*
     lightNode0->color = glm::vec3(0.8, 0.2, 0.1); // Red
     lightNode1->color = glm::vec3(0.2, 0.8, 0.1); // Green
     lightNode2->color = glm::vec3(0.9, 0.3, 0.0); // Intense red
-    */
-    lightNode2->intensity = 10.3f;
-    lightNode2->intensity = 10.3f;
-    lightNode2->intensity = 4.3f;
+
+    lightNode0->intensity = 5.0f;
+    lightNode1->intensity = 0.0f;
+    lightNode2->intensity = 0.0f;
 
     lightNode3->position = cameraPosition + glm::vec3(0, -0.5, 0);
     lightNode3->color = glm::vec3(0.8, 0.8, 1.0); // Hot orange
-    lightNode3->intensity = 6.0f;
+    lightNode3->intensity = 0.0f;
 
-    if (showBox) {
-        rootNode->children.push_back(boxNode);
-    }
+    
+    rootNode->children.push_back(boxNode);
     rootNode->children.push_back(starNode);
     rootNode->children.push_back(textNode);
     starNode->children.push_back(glowNode);
     starNode->children.push_back(glowNode2);
     //starNode->children.push_back(glowNode3);
 
+    float skyboxScale = 500.0;
+    boxNode->position = { 0, 0, 0 };
+    boxNode->scale = glm::vec3(skyboxScale, skyboxScale, skyboxScale);
     boxNode->vertexArrayObjectID  = boxVAO;
     boxNode->VAOIndexCount        = box.indices.size();
+    boxNode->nodeType = TEXTURE;
+    boxNode->textureType = COLOR;
+    boxNode->texID = skyboxTexID;
 
     padNode->vertexArrayObjectID  = padVAO;
     padNode->VAOIndexCount        = mirror.indices.size();
-
-
 
 
     getTimeDeltaSeconds();
@@ -384,6 +470,9 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     std::cout << "Ready. Click to start!" << std::endl;
 }
+
+
+
 
 void updateFrame(GLFWwindow* window) {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -516,10 +605,12 @@ void updateFrame(GLFWwindow* window) {
                 ballDirection.z *= -1;
             }
 
+            /*
             if(options.enableAutoplay) {
                 padPositionX = 1-(ballPosition.x - ballMinX) / (ballMaxX - ballMinX);
                 padPositionZ = 1-(ballPosition.z - ballMinZ) / ((ballMaxZ+cameraWallOffset) - ballMinZ);
             }
+            */
 
             // Check if the ball is hitting the pad when the ball is at the bottom.
             // If not, you just lost the game! (hehe)
@@ -546,21 +637,46 @@ void updateFrame(GLFWwindow* window) {
         }
     }
 
-    glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 350.f);
+    glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 100000.f);
+
+    // It's a vec4 because it needs to be rotated with 4x4 matrices
+    glm::vec4 movementVector = glm::vec4(0.0, 0.0, 0.0, 0.0);
+    if (isKeyDown(GLFW_KEY_W)) movementVector.z += -1.0;
+    if (isKeyDown(GLFW_KEY_S)) movementVector.z += 1.0;
+    if (isKeyDown(GLFW_KEY_A)) movementVector.x += -1.0;
+    if (isKeyDown(GLFW_KEY_D)) movementVector.x += 1.0;
+    if (isKeyDown(GLFW_KEY_Q)) movementVector.y += -1.0;
+    if (isKeyDown(GLFW_KEY_E)) movementVector.y += 1.0;
+
+    if (glm::length(movementVector) > 0.1) {
+        movementVector = glm::normalize(movementVector);
+    }
+    
+    movementVector = glm::rotate(-lookDirectionY, glm::vec3(1, 0, 0)) * movementVector;
+    movementVector = glm::rotate(-lookDirectionX, glm::vec3(0, 1, 0)) * movementVector;
+    //movementVector *= -1; // I dunno why
+    
+    float speed;
+    if (isKeyDown(GLFW_KEY_LEFT_SHIFT)) {
+        speed = movementSpeedAmplified;
+    } else {
+        speed = movementSpeed;
+    }
+
+    cameraPosition += (glm::vec3) movementVector * speed;
+
 
     // Some fancy math to make the camera move in a nice way
-    float lookRotation = -0.6 / (1 + exp(-5 * (padPositionX-0.5))) + 0.3;
+    //float lookRotation = -0.6 / (1 + exp(-5 * (padPositionX-0.5))) + 0.3;
     glm::mat4 cameraTransform =
-                    glm::rotate(0.3f + 0.2f * float(-padPositionZ*padPositionZ), glm::vec3(1, 0, 0)) *
-                    glm::rotate(lookRotation, glm::vec3(0, 1, 0)) *
+                    glm::rotate(lookDirectionY, glm::vec3(1, 0, 0)) *
+                    glm::rotate(lookDirectionX, glm::vec3(0, 1, 0)) *
                     glm::translate(-cameraPosition);
 
     glm::mat4 VP = projection * cameraTransform;
 
 
     // Move and rotate various SceneNodes
-    boxNode->position = { 0, -10, -80 };
-
     ballNode->position = ballPosition;
     ballNode->scale = glm::vec3(ballRadius);
     ballNode->rotation = { 0, totalElapsedTime*2, 0 };
@@ -575,11 +691,7 @@ void updateFrame(GLFWwindow* window) {
 
     // Star
     float t = totalElapsedTime * timeSpeedup; // Adjustable simulated time
-
-    float starSize = 10;
-    starNode->position = glm::vec3(0, -20, -100);
-    starNode->scale = glm::vec3(starSize, starSize, starSize);
-    starNode->rotation = { 0, t * 10, 0 };
+    starNode->rotation = { 0, t * 10, 0 }; // Config todo
 
     lightNode2->position.x = 0.5-padPositionX;
     lightNode2->position.y = -0.3;
@@ -618,10 +730,11 @@ void updateFrame(GLFWwindow* window) {
     
     glUniform1i(10, calculateShadows);
 
-    float boxSize = boxDimensions.y;
     glUniform3f(8, ballPosition.x/180, ballPosition.y/90, ballPosition.z/90);
 
-
+    glUniform3f(12, cameraPosition.x, cameraPosition.y, cameraPosition.z);
+    //glm::vec3 test = glm::vec3(0.0, 2.0, 0.0);
+    //glUniform3f(12, test.x, test.y, test.z);
 
     // Setting light values
     
@@ -665,9 +778,6 @@ void updateFrame(GLFWwindow* window) {
     glUniform3fv(shader->getUniformFromName("lights[3].position"),  1, glm::value_ptr(lightNode3->position));
     glUniform1f( shader->getUniformFromName("lights[3].intensity"),                   lightNode3->intensity);
 
-
-
-    
 
     
 

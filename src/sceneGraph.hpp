@@ -27,8 +27,13 @@ struct SceneConfig {
     float mirrorSize;
     std::string starTextureFile;
     std::string mirrorModel;
+    glm::vec3 fresnelColor;
 };
 
+struct KeyValue {
+    int key;
+    bool value;
+};
 
 struct SceneNode {
 	SceneNode() {

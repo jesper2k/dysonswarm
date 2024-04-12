@@ -21,13 +21,17 @@ out layout(location = 0) vec4 color;
 
 
 uniform layout(location = 64) int is_textured;
-uniform layout(location = 11) int is_fresnel;
 
 // Uniform/static value taken from updateFrame function
 uniform layout(location = 5) int is_instanced;
 uniform layout(location = 7) float ambient;
 uniform layout(location = 8) vec3 ball_pos;
+uniform layout(location = 9) vec3 fresnelColor;
 //uniform layout(location = 10) int calculateShadows;
+uniform layout(location = 11) int is_fresnel;
+uniform layout(location = 12) vec3 cameraPosition;
+
+
 float ball_radius = 0.1;
 
 // Texture
@@ -86,7 +90,7 @@ float dither_intensity;
 
 float fresnel() {
     surface_to_light = normalize(light_pos - position);
-    surface_to_camera = normalize(vec3(0, 0, 0) - position);
+    surface_to_camera = normalize(cameraPosition - position);
     reflected_light = reflect(-surface_to_light, normal);
     return clamp(0.5 - 0.5* dot(surface_to_camera, reflected_light), 0, 1);
 }
@@ -100,14 +104,15 @@ vec4 calculateFragmentColor(Light light) {
     d = length(light_pos - position);
     attenuation = clamp(1/(10*pow(d, 2)), 0, 100); 
 
-    diffuse_intensity = light.intensity * attenuation * dot(surface_to_light, normal);
+    diffuse_intensity = light.intensity * attenuation * abs(dot(surface_to_light, normal));
     diffuse_color = light.color;
     
     shininess = 18.0;
-    surface_to_camera = normalize(vec3(0, 0, 0) - position);
+    surface_to_camera = normalize(cameraPosition - position);
     reflected_light = reflect(-surface_to_light, normal);
-    specular_intensity = light.intensity * attenuation * clamp(pow(clamp(dot(surface_to_camera, reflected_light), 0, 1), shininess), 0, 1); // Sorry
-    specular_color = vec3(1, 1, 1);
+    //specular_intensity = light.intensity * attenuation * clamp(pow(clamp(abs(dot(surface_to_camera, reflected_light)), 0, 1), shininess), 0, 1); // Sorry
+    specular_intensity = light.intensity * attenuation * pow(dot(surface_to_camera, reflected_light), shininess);
+    specular_color = vec3(0, 0, 1);
 
     // Shadow
     /*
@@ -129,7 +134,7 @@ vec4 calculateFragmentColor(Light light) {
     
     // Phong with dither, attenuation, and shadows
     return vec4((diffuse_intensity * diffuse_color // Diffuse
-              + 0.5 * specular_intensity * specular_color) // Specular
+              + 5.5 * specular_intensity * specular_color) // Specular
               * (1/*-shadow*/) * vec3(1, 1, 1), 1);
     
 }
@@ -137,7 +142,10 @@ vec4 calculateFragmentColor(Light light) {
 void main()
 {
     if (is_fresnel == 1) {
-        color = vec4(2.0 * fresnel() * vec3(0.6, 0.2, 1.0), 0.5 * fresnel());
+        color = vec4(2.0 * fresnel() * fresnelColor, 0.3 * fresnel());
+        //color = vec4(vec3(1.0, 1.0, 1.0) * fresnel(), 1.0); // Black white debug fresnel
+        //color = vec4(40*position, 1.0);
+        
         return;
     }
         
