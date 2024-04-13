@@ -89,10 +89,8 @@ float specular_intensity;
 float dither_intensity;
 
 float fresnel() {
-    surface_to_light = normalize(light_pos - position);
-    surface_to_camera = normalize(cameraPosition - position);
-    reflected_light = reflect(-surface_to_light, normal);
-    return clamp(0.5 - 0.5* dot(surface_to_camera, reflected_light), 0, 1);
+    surface_to_camera = normalize(cameraPosition/10 - position);
+    return clamp(1.0 - abs(1.0*dot(-surface_to_camera, normalize(normal))), 0, 1);
 }
 
 vec4 calculateFragmentColor(Light light) {
@@ -110,8 +108,8 @@ vec4 calculateFragmentColor(Light light) {
     shininess = 18.0;
     surface_to_camera = normalize(cameraPosition - position);
     reflected_light = reflect(-surface_to_light, normal);
-    //specular_intensity = light.intensity * attenuation * clamp(pow(clamp(abs(dot(surface_to_camera, reflected_light)), 0, 1), shininess), 0, 1); // Sorry
-    specular_intensity = light.intensity * attenuation * pow(dot(surface_to_camera, reflected_light), shininess);
+    specular_intensity = light.intensity * attenuation * clamp(pow(clamp(abs(dot(surface_to_camera, reflected_light)), 0, 1), shininess), 0, 1); // Sorry
+    //specular_intensity = light.intensity * attenuation * pow(dot(surface_to_camera, reflected_light), shininess);
     specular_color = vec3(1,1,1);//(light.color + vec3(1, 1, 1))/2;
 
     // Shadow
@@ -134,7 +132,7 @@ vec4 calculateFragmentColor(Light light) {
     
     // Phong with dither, attenuation, and shadows
     return vec4((diffuse_intensity * diffuse_color // Diffuse
-              + 5.5 * specular_intensity * specular_color) // Specular
+              + 1.0 * specular_intensity * specular_color) // Specular
               * (1/*-shadow*/) * vec3(1, 1, 1), 1);
     
 }
@@ -142,9 +140,10 @@ vec4 calculateFragmentColor(Light light) {
 void main()
 {
     if (is_fresnel == 1) {
-        color = vec4(2.0 * fresnel() * fresnelColor, 0.3 * fresnel());
-        //color = vec4(vec3(1.0, 1.0, 1.0) * fresnel(), 1.0); // Black white debug fresnel
-        //color = vec4(40*position, 1.0);
+        float f = fresnel();
+        color = vec4(5.0 * f * fresnelColor, f);
+        //color = vec4(f * vec3(1.0, 1.0, 1.0), 1.0); // Black white debug fresnel
+        //color = vec4(40*position, 1.0); // Position debug
         
         return;
     }

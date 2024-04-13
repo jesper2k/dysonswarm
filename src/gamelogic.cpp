@@ -51,20 +51,20 @@ float tau = 2 * pi;
 
 
 // Scene setup
-int scene = 1;
+int scene = 0;
 SceneConfig sceneConfigs[3] = {
     {
-        /* Mirror objects                */ 50,
-        /* Instances per object          */ 10,
-        /* Mirror size                   */ 0.020,
+        /* Mirror objects                */ 200,
+        /* Instances per object          */ 50,
+        /* Mirror size                   */ 0.010,
         /* Star texture filename         */ "sun_col.png",
         /* Mirror model filename         */ "hex.obj",
         /* Fresnel color                 */ glm::vec3(0.9, 0.5, 0.1),
     },
     {
-        500,
-        200,
-        0.003,
+        300,
+        100,
+        0.005,
         "neutronstar.png",
         "hex.obj",
         glm::vec3(0.6, 0.2, 1.0),
@@ -415,24 +415,31 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     // Config todo
     textNode->position = glm::vec3(-60, 0, -150);
-    lightNode0->position = glm::vec3(0.0, 0.0, 0.0);
-    lightNode1->position = glm::vec3(-0.2, -0.3, -0.3);
-    lightNode2->position = glm::vec3(-0.6, -0.3, -0.3);
+    
+    starNode->position = glm::vec3(0, 0, 0);
+    glowNode->position = glm::vec3(0, 0, 0);
+    glowNode->scale = glm::vec3(1.01, 1.01, 1.01);
+    glowNode2->position = glm::vec3(0, 0, 0);
+    glowNode2->scale = glm::vec3(1.05, 1.05, 1.05);
+    glowNode3->position = glm::vec3(0, 0, 0);
+    glowNode3->scale = glm::vec3(1.15, 1.15, 1.15);
 
-    // Config todo
-    lightNode0->color = glm::vec3(0.8, 0.2, 0.1); // Red
-    lightNode1->color = glm::vec3(0.2, 0.8, 0.1); // Green
+
+    lightNode0->color = glm::vec3(0.8, 0.2, 0.0); // Red
+    lightNode1->color = glm::vec3(0.9, 0.4, 0.0); // Orange
     lightNode2->color = glm::vec3(0.9, 0.3, 0.0); // Intense red
 
-    float lightIntensity = 3.0f;
-    lightNode0->intensity = 2.0f * lightIntensity;
-    lightNode1->intensity = 1.0f * lightIntensity;
-    lightNode2->intensity = 1.0f * lightIntensity;
+    lightNode0->position = glm::vec3(0.4, 0, -0.3);
+    lightNode1->position = glm::vec3(-0.4, 0, -0.3);
+    lightNode2->position = glm::vec3(0.0, 0, 0.6);
 
-    
-    lightNode3->position = cameraPosition + glm::vec3(0, 0, 0);
-    lightNode3->color = glm::vec3(0.8, 0.8, 1.0); // Hot orange
-    lightNode3->intensity = 1.0f * lightIntensity;
+    lightNode2->intensity = 10.3f;
+    lightNode2->intensity = 10.3f;
+    lightNode2->intensity = 4.3f;
+
+    lightNode3->position = cameraPosition + glm::vec3(0, -0.5, 0);
+    lightNode3->color = glm::vec3(0.9, 0.5, 0.0); // Hot orange
+    lightNode3->intensity = 6.0f;
     
     
     rootNode->children.push_back(boxNode);
