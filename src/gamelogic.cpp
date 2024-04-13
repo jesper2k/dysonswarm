@@ -176,6 +176,7 @@ double totalElapsedTime = debug_startTime;
 double gameElapsedTime = debug_startTime;
 
 double mouseSensitivity = 1.0;
+bool firstMouseData = true;
 double lastMouseX = windowWidth / 2;
 double lastMouseY = windowHeight / 2;
 float lookDirectionX = 0.0;
@@ -185,10 +186,12 @@ float movementSpeed = 1.0;
 float movementSpeedAmplified = 3.0;
 
 void mouseCallback(GLFWwindow* window, double x, double y) {
+    // Viewport setup
     int windowWidth, windowHeight;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);
     glViewport(0, 0, windowWidth, windowHeight);
 
+    // Relative offset
     double deltaX = x - lastMouseX;
     double deltaY = y - lastMouseY;
     
@@ -202,40 +205,22 @@ void mouseCallback(GLFWwindow* window, double x, double y) {
     if (lookDirectionY > tau/4) lookDirectionY = tau/4;//tau/4;
     if (lookDirectionY < -tau/4) lookDirectionY = -tau/4;//-tau/4; 
 
-
-
-    padPositionX -= mouseSensitivity * deltaX / windowWidth;
-    padPositionZ -= mouseSensitivity * deltaY / windowHeight;
-
-    /*
-    if (padPositionX > 1) padPositionX = 1;
-    if (padPositionX < 0) padPositionX = 0;
-    if (padPositionZ > 1) padPositionZ = 1;
-    if (padPositionZ < 0) padPositionZ = 0;
-    */
+    // Skip first data from mouse, because the delta values are wrong
+    if (firstMouseData == true) {
+        firstMouseData = false;
+        
+        lookDirectionX = 0.0;
+        lookDirectionY = 0.0;
+    }
 
     glfwSetCursorPos(window, windowWidth / 2, windowHeight / 2);
 }
 
 // Keypress status handler
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-    /*
-    // Simple example
-    if (key == GLFW_KEY_E && action == GLFW_PRESS) {
-        std::cout << "key E pressed" << std::endl;
-    }
-    */
-
-    
     for (int i = 0; i < numKeys; i++) {
-        if (key == keyDown[i].key && action == GLFW_PRESS)   {
-            keyDown[i].value = true;
-            //std::cout << std::to_string(keyDown[i].key) + " : " << keyDown[i].value << std::endl;
-        }
-        if (key == keyDown[i].key && action == GLFW_RELEASE) {
-            keyDown[i].value = false;
-            //std::cout << std::to_string(keyDown[i].key) + " : " << keyDown[i].value << std::endl;
-        }
+        if (key == keyDown[i].key && action == GLFW_PRESS)   keyDown[i].value = true;
+        if (key == keyDown[i].key && action == GLFW_RELEASE) keyDown[i].value = false;
     }
     
 }
@@ -272,8 +257,10 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     
     sound = new sf::Sound();
     sound->setBuffer(*buffer);
-    //sf::Time startTime = sf::seconds(debug_startTime);
-    //sound->setPlayingOffset(startTime);
+    sf::Time startTime = sf::seconds(debug_startTime);
+    sound->setPlayingOffset(startTime);
+    sound->setVolume(50);
+    sound->setLoop(true);
     //sound->play();
 
 
@@ -308,7 +295,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     Mesh mirrorModel = loadObj("../res/models/" + sceneConfigs[scene].mirrorModel);
     Mesh model = mirrorModel;
 
-    std::cout << "spis meg py" << std::endl;
+    std::cout << "spis meg py\n3" << std::endl;
 
     PNGImage charMap = loadPNGFile("../res/textures/charmap.png");
     GLuint textTexID = getTextureID(charMap);
@@ -402,11 +389,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     lightNode2->nodeType = POINT_LIGHT;
     lightNode3->nodeType = POINT_LIGHT;
 
-    // Config todo
-    textNode->position = glm::vec3(-60, 0, -150);
-    lightNode0->position = glm::vec3(0.2, -0.3, -0.3);
-    lightNode1->position = glm::vec3(-0.2, -0.3, -0.3);
-    lightNode2->position = glm::vec3(-0.6, -0.3, -0.3);
     
     rootNode->position = glm::vec3(0, 0, 0);
 
@@ -424,25 +406,34 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glowNode3->scale = glm::vec3(1.15, 1.15, 1.15);
 
     
-    // Config todo
     /*
+    // Neutron star blue lights
     lightNode0->color = glm::vec3(0.2, 0.2, 0.9); // Red
     lightNode1->color = glm::vec3(0.2, 0.8, 0.9); // Green
     lightNode2->color = glm::vec3(0.2, 0.3, 0.9); // Intense red
     */
 
+    // Config todo
+    textNode->position = glm::vec3(-60, 0, -150);
+    lightNode0->position = glm::vec3(0.0, 0.0, 0.0);
+    lightNode1->position = glm::vec3(-0.2, -0.3, -0.3);
+    lightNode2->position = glm::vec3(-0.6, -0.3, -0.3);
+
+    // Config todo
     lightNode0->color = glm::vec3(0.8, 0.2, 0.1); // Red
     lightNode1->color = glm::vec3(0.2, 0.8, 0.1); // Green
     lightNode2->color = glm::vec3(0.9, 0.3, 0.0); // Intense red
 
-    lightNode0->intensity = 5.0f;
-    lightNode1->intensity = 0.0f;
-    lightNode2->intensity = 0.0f;
+    float lightIntensity = 3.0f;
+    lightNode0->intensity = 2.0f * lightIntensity;
+    lightNode1->intensity = 1.0f * lightIntensity;
+    lightNode2->intensity = 1.0f * lightIntensity;
 
-    lightNode3->position = cameraPosition + glm::vec3(0, -0.5, 0);
+    
+    lightNode3->position = cameraPosition + glm::vec3(0, 0, 0);
     lightNode3->color = glm::vec3(0.8, 0.8, 1.0); // Hot orange
-    lightNode3->intensity = 0.0f;
-
+    lightNode3->intensity = 1.0f * lightIntensity;
+    
     
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(starNode);

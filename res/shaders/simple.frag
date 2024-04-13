@@ -112,7 +112,7 @@ vec4 calculateFragmentColor(Light light) {
     reflected_light = reflect(-surface_to_light, normal);
     //specular_intensity = light.intensity * attenuation * clamp(pow(clamp(abs(dot(surface_to_camera, reflected_light)), 0, 1), shininess), 0, 1); // Sorry
     specular_intensity = light.intensity * attenuation * pow(dot(surface_to_camera, reflected_light), shininess);
-    specular_color = vec3(0, 0, 1);
+    specular_color = vec3(1,1,1);//(light.color + vec3(1, 1, 1))/2;
 
     // Shadow
     /*
