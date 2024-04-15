@@ -53,11 +53,12 @@ bool mute = true;
 
 // Scene setup
 int scene = 0;
+int numSecneProperties = 6; // Manually updated
 SceneConfig sceneConfigs[3] = {
     {
-        /* Mirror objects                */ 200,
-        /* Instances per object          */ 50,
-        /* Mirror size                   */ 0.010,
+        /* Mirror objects                */ 400,
+        /* Instances per object          */ 1000,
+        /* Mirror size                   */ 0.002,
         /* Star texture filename         */ "sun_col.png",
         /* Mirror model filename         */ "hex.obj",
         /* Fresnel color                 */ glm::vec3(0.9, 0.5, 0.1),
@@ -81,13 +82,14 @@ SceneConfig sceneConfigs[3] = {
 };
 
 
+
 float starSize = 10.0; // Config todo
 const float timeSpeedup = 0.25; // 0.03
 
 float mirrorScale = sceneConfigs[scene].mirrorSize;
 int numMirrors = sceneConfigs[scene].numMirrors;
 const int maxNumMirrors = 500; // Config todo
-const float baseRadius = 40; // Config todo
+const float baseRadius = 50; // Config todo
 const float randRadius = 60;// Config todo
 const float maxInclination = 0.15; // of radius
 glm::vec3 fresnelColor = sceneConfigs[scene].fresnelColor;
@@ -95,9 +97,15 @@ glm::vec3 fresnelColor = sceneConfigs[scene].fresnelColor;
 glm::vec3 cameraPosition = glm::vec3(0, 20, 100);
 
 Mirror* mirrors[maxNumMirrors];
+const int numMagNodes = 4;
+SceneNode* magNodes[numMagNodes];
+
+SceneNode dysonLayer1;
+SceneNode dysonLayer2;
+SceneNode dysonLayer3;
 
 int instances = sceneConfigs[scene].instances;
-const float instanceRandomSize = 400.0f;// Config todo
+const float instanceRandomSize = 500.0f;// Config todo
 glm::vec3 instanceOffset[1000];
 
 double padPositionX = 0;
@@ -114,6 +122,7 @@ float random() {
 }
 
 SceneNode* rootNode;
+SceneNode* hiddenNode;
 SceneNode* boxNode;
 SceneNode* ballNode;
 SceneNode* starNode;
@@ -121,7 +130,11 @@ SceneNode* glowNode; // Fresnel for star
 SceneNode* glowNode2; // Fresnel for star
 SceneNode* glowNode3; // Fresnel for star
 SceneNode* arcNode;
+SceneNode* magNode;
 SceneNode* textNode;
+SceneNode* dysonNode1;
+SceneNode* dysonNode2;
+SceneNode* dysonNode3;
 
 PointLight* lightNode0;
 PointLight* lightNode1;
@@ -158,7 +171,7 @@ bool mouseLeftReleased  = false;
 bool mouseRightPressed  = false;
 bool mouseRightReleased = false;
 
-const int numKeys = 16;
+const int numKeys = 16; // Manually updated
 KeyValue keyDown[numKeys] = {
     { GLFW_KEY_1, false }, // Scene 1
     { GLFW_KEY_2, false }, // Scene 2
@@ -178,6 +191,11 @@ KeyValue keyDown[numKeys] = {
     { GLFW_KEY_RIGHT, false }, // Increase debug value 2
 };
 
+void updateScene(int sceneID) {
+    for (int i = 0; i < numSecneProperties; i++) {
+        
+    }
+}
 // Modify if you want the music to start further on in the track. Measured in seconds.
 
 float debugValue1 = 0.0f;
@@ -208,7 +226,6 @@ void mouseCallback(GLFWwindow* window, double x, double y) {
     
     lookDirectionX += 0.01 * mouseSensitivity * deltaX;
     lookDirectionY += 0.01 * mouseSensitivity * deltaY;
-
 
     lookDirectionX = fmod(lookDirectionX, tau);
 
@@ -318,6 +335,9 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     //Mesh mirrorModel = loadObj("../res/models/hex2sided.obj");
     Mesh mirrorModel = loadObj("../res/models/" + sceneConfigs[scene].mirrorModel);
     Mesh model = mirrorModel;
+    Mesh dysonLayer1model = loadObj("../res/models/dysonLayer1.obj");
+    Mesh dysonLayer2model = loadObj("../res/models/dysonLayer2.obj");
+    Mesh dysonLayer3model = loadObj("../res/models/dysonLayer3.obj");
 
     std::cout << "spis meg py\n3" << std::endl;
 
@@ -325,6 +345,10 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     GLuint textTexID = getTextureID(charMap);
     PNGImage skybox = loadPNGFile("../res/textures/skybox.png");
     GLuint skyboxTexID = getTextureID(skybox);
+    PNGImage magnetsTexture = loadPNGFile("../res/textures/magnets_sprite_weak.png");
+    GLuint magnetTexID = getTextureID(magnetsTexture);
+    PNGImage UVTexture = loadPNGFile("../res/textures/uv.png");
+    GLuint uvTexD = getTextureID(UVTexture);
 
     
     //PNGImage sun_col = loadPNGFile("../res/textures/sun_col.png");
@@ -344,8 +368,13 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     textNode->scale.x = 0;
     textNode->scale.y = 0;
 
-    //PNGImage sunTexture = loadPNGFile("../res/textures/8k_sun.png");
-    //GLuint sunTexID = getTextureID(sunTexture);
+    // The root of all nodes
+    rootNode = createSceneNode();
+
+    // And a node for all the ones we don't want to see
+    hiddenNode = createSceneNode();
+
+
     starNode = createSceneNode();
     starNode->vertexArrayObjectID  = generateBuffer(sphere);
     starNode->VAOIndexCount        = sphere.indices.size();
@@ -368,16 +397,17 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glowNode3->VAOIndexCount        = sphere.indices.size();
     glowNode3->nodeType = FRESNEL;
 
-    rootNode = createSceneNode();
+
 
     // Replace this with mesh instantiating later
 
+    int modelVAOID = generateBuffer(model);
     for (int i = 0; i < numMirrors; i++) {
         Mirror* newMirror = new Mirror();
         newMirror->position = glm::vec3(0, 0, 0);
         rootNode->children.push_back(newMirror);
         
-        newMirror->vertexArrayObjectID = generateBuffer(model);
+        newMirror->vertexArrayObjectID = modelVAOID;
         newMirror->VAOIndexCount = model.indices.size();
 
         newMirror->radius = baseRadius + randRadius * random();
@@ -397,7 +427,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     // Define nodes
     boxNode  = createSceneNode();
-    arcNode  = createSceneNode();
     ballNode = createSceneNode();
     
     // Light source nodes
@@ -478,15 +507,63 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     boxNode->textureType = COLOR;
     boxNode->texID = skyboxTexID;
 
-
+    // Solar prominence/arc from surface
     unsigned int padVAO  = generateBuffer(pad);
+    arcNode = createSceneNode();
     arcNode->vertexArrayObjectID  = padVAO;
     arcNode->VAOIndexCount = pad.indices.size();
     arcNode->position = starSize/10 * glm::vec3(-1.0, 0.0, 0.0);
-    arcNode->scale = 1.0f * glm::vec3(1/padDimensions.x, 0.01f/padDimensions.y, 1/padDimensions.z);
+    arcNode->scale = 1.0f * glm::vec3(1/padDimensions.x, 0.001f/padDimensions.y, 1/padDimensions.z);
     arcNode->nodeType = TEXTURE;
     arcNode->textureType = COLOR;
     arcNode->texID = prominenceTexID;
+
+    // Magnetic field lines
+    /*
+    for (int i = 0; i < numMagNodes; i++) {
+        magNodes[i] = createSceneNode();
+        magNodes[i]->vertexArrayObjectID  = padVAO;
+        magNodes[i]->VAOIndexCount = pad.indices.size();
+        magNodes[i]->position = starSize/10 * glm::vec3(0.0, 0.0, 0.0);
+        magNodes[i]->scale = 10.0f * glm::vec3(1.5f/padDimensions.x, 0.001f/padDimensions.y, 1/padDimensions.z);
+        magNodes[i]->nodeType = TEXTURE;
+        magNodes[i]->textureType = COLOR;
+        magNodes[i]->texID = magnetTexID;
+
+        // Only difference is y-rotation relative to star
+        magNodes[i]->rotation = glm::vec3(tau/4 + debugValue1, i * tau/(2 * numMagNodes), -tau/4);
+
+        starNode->children.push_back(magNodes[i]);
+    }
+    */
+    dysonNode1 = createSceneNode();
+    dysonNode2 = createSceneNode();
+    dysonNode3 = createSceneNode();
+
+    unsigned int dysonLayer1VAO = generateBuffer(dysonLayer1model);
+    unsigned int dysonLayer2VAO = generateBuffer(dysonLayer2model);
+    unsigned int dysonLayer3VAO = generateBuffer(dysonLayer3model);
+
+    dysonNode1->vertexArrayObjectID  = dysonLayer1VAO;
+    dysonNode2->vertexArrayObjectID  = dysonLayer2VAO;
+    dysonNode3->vertexArrayObjectID  = dysonLayer3VAO;
+
+    dysonNode1->VAOIndexCount = dysonLayer1model.indices.size();
+    dysonNode2->VAOIndexCount = dysonLayer2model.indices.size();
+    dysonNode3->VAOIndexCount = dysonLayer3model.indices.size();
+
+    float dysonShellRadius = 3.0f;
+    dysonNode1->scale = 1.0f * glm::vec3(1, 1, 1) * dysonShellRadius;
+    dysonNode2->scale = 1.1f * glm::vec3(1, 1, 1) * dysonShellRadius;
+    dysonNode3->scale = 1.2f * glm::vec3(1, 1, 1) * dysonShellRadius;
+
+    dysonNode1->nodeType = TEXTURE; dysonNode1->texID = uvTexD;
+    dysonNode2->nodeType = TEXTURE; dysonNode2->texID = uvTexD;
+    dysonNode3->nodeType = TEXTURE; dysonNode3->texID = uvTexD;
+
+
+    // Doing color = vec4(0.2, 0.3, 0.9, 1.0) -> vec4(0.2, 0.3, 0.9, 0.9) is just a blend mode
+    // How 2 blend tho??
 
 
     // Construct scene graph
@@ -496,6 +573,9 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     starNode->children.push_back(glowNode);
     starNode->children.push_back(glowNode2);
     starNode->children.push_back(arcNode);
+    starNode->children.push_back(dysonNode1);
+    starNode->children.push_back(dysonNode2);
+    starNode->children.push_back(dysonNode3);
 
 
     getTimeDeltaSeconds();
@@ -515,6 +595,10 @@ void updateFrame(GLFWwindow* window) {
     gameElapsedTime += timeDelta;
     //std::cout << gameElapsedTime << std::endl; // Debug time
 
+
+    if (isKeyDown(GLFW_KEY_1)) scene = 0;
+    if (isKeyDown(GLFW_KEY_2)) scene = 1;
+    if (isKeyDown(GLFW_KEY_3)) scene = 2;
     
     // Debug interaction
     float debugValueSensitivity = 0.01f;
@@ -591,6 +675,8 @@ void updateFrame(GLFWwindow* window) {
     
     // surfance prominence
     arcNode->rotation = { gameElapsedTime/3 + tau/2, tau/4, -tau/4 };
+
+
 
     lightNode2->position.x = 0.5-padPositionX;
     lightNode2->position.y = -0.3;
