@@ -30,6 +30,7 @@ uniform layout(location = 9) vec3 fresnelColor;
 //uniform layout(location = 10) int calculateShadows;
 uniform layout(location = 11) int is_fresnel;
 uniform layout(location = 12) vec3 cameraPosition;
+uniform layout(location = 13) float time;
 
 
 float ball_radius = 0.1;
@@ -94,14 +95,16 @@ float fresnel() {
 }
 
 vec4 calculateFragmentColor(Light light) {
-    light_pos = light.position;
     
-    surface_to_light = normalize(light_pos - position);
-
     // Distance from fragment/pixel position to light
     d = length(light_pos - position);
     attenuation = clamp(1/(10*pow(d, 2)), 0, 100); 
+    
+    // WTF this looks so much better
+    //return vec4(fresnelColor * attenuation, 0.5);
 
+    light_pos = light.position;
+    surface_to_light = normalize(light_pos - position);
     diffuse_intensity = light.intensity * attenuation * abs(dot(surface_to_light, normal));
     diffuse_color = light.color;
     
@@ -130,10 +133,11 @@ vec4 calculateFragmentColor(Light light) {
     //color = vec4(0.5 * (rejection) + 0.5 + ambient, 1.0);
     //color = vec4(lights[0].color, 1.0);
     
+              
     // Phong with dither, attenuation, and shadows
     return vec4((diffuse_intensity * diffuse_color // Diffuse
               + 1.0 * specular_intensity * specular_color) // Specular
-              * (1/*-shadow*/) * vec3(1, 1, 1), 1);
+              * (1/*-shadow*/) * vec3(1, 1, 1), 1.0);
     
 }
 
@@ -141,7 +145,7 @@ void main()
 {
     if (is_fresnel == 1) {
         float f = fresnel();
-        color = vec4(5.0 * f * fresnelColor, f);
+        color = vec4(3.0 * f * fresnelColor, f);
         //color = vec4(f * vec3(1.0, 1.0, 1.0), 1.0); // Black white debug fresnel
         //color = vec4(40*position, 1.0); // Position debug
         
@@ -149,9 +153,14 @@ void main()
     }
         
     if (is_textured == 1) {
-        
-        color = texture(tex, textureCoordinates);
 
+        // FUN STUFF, do this for animations! 
+        /*
+        color = texture(tex, vec2(
+            mod(textureCoordinates.x + 0.0 * time, 1),
+            mod(textureCoordinates.y + 0.1 * time, 1)));
+        */
+        color = texture(tex, textureCoordinates);
         //color = vec4(1.0, 0.0, 0.0, 1.0);
         //color = vec4(textureCoordinates.x, textureCoordinates.y, 0.0, 1.0);
         return;
