@@ -278,6 +278,17 @@ unsigned int getTextureID(PNGImage texture) {
 }
 
 void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
+    
+    options = gameOptions;
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+    glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetKeyCallback(window, keyCallback);
+    initScene();
+}
+
+void initScene() {
+
     buffer1 = new sf::SoundBuffer();
     buffer2 = new sf::SoundBuffer();
     if (!buffer1->loadFromFile("../res/DSP_main_theme.ogg")) {
@@ -305,11 +316,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     if (!mute)    sound1->play();
     if (!mute)    sound2->play();
 
-    options = gameOptions;
-
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-    glfwSetCursorPosCallback(window, mouseCallback);
-    glfwSetKeyCallback(window, keyCallback);
 
     shader = new Gloom::Shader();
     shader->makeBasicShader("../res/shaders/simple.vert", "../res/shaders/simple.frag");
@@ -472,8 +478,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glowNode3->scale = glm::vec3(1.15, 1.15, 1.15);
 
    
-    /*
     // Neutron star blue lights
+    /*
     lightNode0->color = glm::vec3(0.2, 0.2, 0.9); // Red
     lightNode1->color = glm::vec3(0.2, 0.8, 0.9); // Green
     lightNode2->color = glm::vec3(0.2, 0.3, 0.9); // Intense red
@@ -519,7 +525,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     arcNode->texID = prominenceTexID;
 
     // Magnetic field lines
-    /*
+    /** /
     for (int i = 0; i < numMagNodes; i++) {
         magNodes[i] = createSceneNode();
         magNodes[i]->vertexArrayObjectID  = padVAO;
@@ -531,11 +537,12 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
         magNodes[i]->texID = magnetTexID;
 
         // Only difference is y-rotation relative to star
-        magNodes[i]->rotation = glm::vec3(tau/4 + debugValue1, i * tau/(2 * numMagNodes), -tau/4);
+        magNodes[i]->rotation = glm::vec3(tau/4, i * tau/(2 * numMagNodes), -tau/4);
 
         starNode->children.push_back(magNodes[i]);
     }
-    */
+    /**/
+    
     dysonNode1 = createSceneNode();
     dysonNode2 = createSceneNode();
     dysonNode3 = createSceneNode();
@@ -572,11 +579,14 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     rootNode->children.push_back(textNode);
     starNode->children.push_back(glowNode);
     starNode->children.push_back(glowNode2);
-    starNode->children.push_back(arcNode);
-    starNode->children.push_back(dysonNode1);
-    starNode->children.push_back(dysonNode2);
-    starNode->children.push_back(dysonNode3);
 
+    if (scene == 0) {
+        starNode->children.push_back(arcNode);
+    } else if (scene == 2) {
+        starNode->children.push_back(dysonNode1);
+        starNode->children.push_back(dysonNode2);
+        starNode->children.push_back(dysonNode3);
+    }
 
     getTimeDeltaSeconds();
     
@@ -596,9 +606,9 @@ void updateFrame(GLFWwindow* window) {
     //std::cout << gameElapsedTime << std::endl; // Debug time
 
 
-    if (isKeyDown(GLFW_KEY_1)) scene = 0;
-    if (isKeyDown(GLFW_KEY_2)) scene = 1;
-    if (isKeyDown(GLFW_KEY_3)) scene = 2;
+    if (isKeyDown(GLFW_KEY_1)) { scene = 0; initScene(); }
+    if (isKeyDown(GLFW_KEY_2)) { scene = 1; initScene(); }
+    if (isKeyDown(GLFW_KEY_3)) { scene = 2; initScene(); }
     
     // Debug interaction
     float debugValueSensitivity = 0.01f;
@@ -671,10 +681,16 @@ void updateFrame(GLFWwindow* window) {
 
     // Star
     float t = gameElapsedTime * timeSpeedup; // Adjustable simulated time
-    starNode->rotation = { 0, t/4, 0 }; // Config todo
+    if (scene == 0) {
+        starNode->rotation = { 0, t/4, 0 }; // Config todo
+    } else if (scene == 1) {
+        starNode->rotation = { 0, t*8, 0 };
+    } else {
+        starNode->rotation = { 0, t/8, 0 };
+    }
     
     // surfance prominence
-    arcNode->rotation = { gameElapsedTime/3 + tau/2, tau/4, -tau/4 };
+    arcNode->rotation = { gameElapsedTime + tau/2 + debugValue1, tau/4 + debugValue2, -tau/4 };
 
 
 
@@ -827,15 +843,13 @@ void renderNode(SceneNode* node) {
 
         case INSTANCED:
             if(node->vertexArrayObjectID != -1) {
-                //glEnable(GL_BLEND);
-                //glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
                 glBindVertexArray(node->vertexArrayObjectID);
                 glUniform1i(64, 0); // is_textured = false
                 glUniform1i(5, 1); // is_instanced = true
                 glUniform1i(11, 0); // is_fresnel = false
                 glDrawElementsInstanced(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, 0, instances);
-                //glDisable(GL_BLEND);
-                //glBlendFunc(GL_SRC_ALPHA, GL_ZERO);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
             }
             break;
 
