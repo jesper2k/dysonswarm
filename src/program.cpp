@@ -31,6 +31,9 @@ void runProgram(GLFWwindow* window, CommandLineOptions options)
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
+    // Does this even work?
+    //glEnable(GL_FRAMEBUFFER_SRGB);
+
     // Set default colour after clearing the colour buffer
     // Background color
     glClearColor(0.05f, 0.05f, 0.1f, 1.0f);

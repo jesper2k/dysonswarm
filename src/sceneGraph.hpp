@@ -14,7 +14,7 @@
 #include <fstream>
 
 enum SceneNodeType {
-	GEOMETRY, POINT_LIGHT, TEXTURE, INSTANCED, FRESNEL
+	GEOMETRY, POINT_LIGHT, TEXTURE, INSTANCED, FRESNEL, DYSON, ANIMATION
 };
 
 enum TextureType {
@@ -22,12 +22,17 @@ enum TextureType {
 };
 
 struct SceneConfig {
+    float starSize;
     int numMirrors;
-    int instances;
+    int instances; // Total meshes will be numMirrors * instances
     float mirrorSize;
     std::string starTextureFile;
     std::string mirrorModel;
     glm::vec3 fresnelColor;
+    float swarmMinRadius;
+    float swarmMaxRadius;
+    float swarmOrbitSpeed;
+    float swarmInclination;
 };
 
 struct KeyValue {
@@ -40,6 +45,7 @@ struct SceneNode {
 		position = glm::vec3(0, 0, 0);
 		rotation = glm::vec3(0, 0, 0);
 		scale = glm::vec3(1, 1, 1);
+		RGBA = glm::vec4(0, 0, 0, 0);
 
         referencePoint = glm::vec3(0, 0, 0);
         vertexArrayObjectID = -1;
@@ -57,6 +63,7 @@ struct SceneNode {
 	glm::vec3 position;
 	glm::vec3 rotation;
 	glm::vec3 scale;
+	glm::vec4 RGBA;
     glm::mat4 modelMatrix;
 
 	// A transformation matrix representing the transformation of the node's location relative to its parent. This matrix is updated every frame.
