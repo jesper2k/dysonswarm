@@ -33,6 +33,7 @@ struct SceneConfig {
     float swarmMaxRadius;
     float swarmOrbitSpeed;
     float swarmInclination;
+    float instanceSpread;
 };
 
 struct KeyValue {

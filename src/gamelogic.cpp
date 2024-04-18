@@ -57,29 +57,31 @@ int numSecneProperties = 6; // Manually updated
 SceneConfig sceneConfigs[3] = {
     {
         /* Star radius                   */ 15.0f,
-        /* Mirror objects                */ 400,
+        /* Mirror objects                */ 500,
         /* Instances per object          */ 1000,  // Total meshes will be numMirrors * instances
-        /* Mirror size                   */ 0.003,
+        /* Mirror size                   */ 0.002,
         /* Star texture filename         */ "sun_col.png",
         /* Mirror model filename         */ "hex.obj",
         /* Fresnel color                 */ glm::vec3(0.9, 0.5, 0.1),
         /* Swarm min-radius              */ 80,
-        /* Swarm max-radius              */ 120,
-        /* Swarm orbital speed           */ 0.2,
-        /* Swarm orbit inclination       */ 0.25,
+        /* Swarm max-radius              */ 100,
+        /* Swarm orbital speed           */ 0.05,
+        /* Swarm orbit inclination       */ 0.05,
+        /* Instance mirror spread        */ 1000,
     },
     {
         5.0f,
         300,
         100,
-        0.005,
+        0.010,
         "neutronstar.png",
         "hex.obj",
         glm::vec3(0.4, 0.4, 1.0),
         150,
-        175,
-        4.0,
-        0.1
+        250,
+        5.0,
+        0.05,
+        500,
     },
     {
         30.0f,
@@ -90,9 +92,10 @@ SceneConfig sceneConfigs[3] = {
         "hex.obj",
         glm::vec3(1.0, 0.4, 0.2),
         100,
-        120,
+        110,
         0.2,
-        0.075,
+        0.3,
+        1000,
     },
 };
 
@@ -122,7 +125,7 @@ SceneNode dysonLayer2;
 SceneNode dysonLayer3;
 
 int instances = sceneConfigs[scene].instances;
-const float instanceRandomSize = 1000.0f;// Config todo
+float instanceSpread = sceneConfigs[scene].instanceSpread;
 glm::vec3 instanceOffset[1000];
 
 double padPositionX = 0;
@@ -148,9 +151,13 @@ SceneNode* arcNode;
 SceneNode* magNode;
 SceneNode* textNode;
 SceneNode* jetNode;
+SceneNode* dysonSphereNode;
 SceneNode* dysonNode1;
 SceneNode* dysonNode2;
 SceneNode* dysonNode3;
+SceneNode* orbitNode1;
+SceneNode* orbitNode2;
+SceneNode* orbitNode3;
 
 PointLight* lightNode0;
 PointLight* lightNode1;
@@ -354,6 +361,8 @@ void initScene() {
     mirrorScale = sceneConfigs[scene].mirrorSize;
     numMirrors = sceneConfigs[scene].numMirrors;
 
+    instances = sceneConfigs[scene].instances;
+    instanceSpread = sceneConfigs[scene].instanceSpread;
 
     // Create meshes
     Mesh pad = cube(padDimensions, glm::vec2(30, 40), true);
@@ -434,7 +443,20 @@ void initScene() {
     glowNode->nodeType = FRESNEL;
 
 
+    orbitNode1 = createSceneNode();
+    orbitNode2 = createSceneNode();
+    orbitNode3 = createSceneNode();
 
+    // Need to parent to star for correct render order, but don't actually want its rotation
+    //orbitNode1->rotation = -starNode->rotation;
+    orbitNode1->rotation = glm::vec3(0, 0, 0);
+    orbitNode2->rotation = glm::vec3(tau/12, tau/2, tau/24);
+    orbitNode3->rotation = glm::vec3(tau/6, tau/6, 0);
+
+    // This leads to non-accurate orbital speeds between different orbits.
+    orbitNode1->scale = 1.0f * glm::vec3(1, 1, 1);
+    orbitNode2->scale = 3.0f * glm::vec3(1, 1, 1);
+    orbitNode3->scale = 4.0f * glm::vec3(1, 1, 1);
 
     // Making nodes that the instances can be offset relative to
     int modelVAOID = generateBuffer(model);
@@ -443,7 +465,19 @@ void initScene() {
     for (int i = 0; i < numMirrors; i++) {
         Mirror* newMirror = new Mirror();
         newMirror->position = glm::vec3(0, 0, 0);
-        rootNode->children.push_back(newMirror);
+
+        if (scene == 0) {
+            float r = random();
+            if (r < 0.3) {
+                orbitNode1->children.push_back(newMirror);
+            } else if (r < 0.8) {
+                orbitNode2->children.push_back(newMirror);
+            } else {
+                orbitNode3->children.push_back(newMirror);
+            }
+        } else {
+            orbitNode1->children.push_back(newMirror);
+        }
         
         newMirror->vertexArrayObjectID = modelVAOID;
         newMirror->VAOIndexCount = model.indices.size();
@@ -457,7 +491,7 @@ void initScene() {
 
     // Setting up the offet array
     for (int i = 0; i < instances; i++) {
-        float IRS = instanceRandomSize;
+        float IRS = instanceSpread;
         instanceOffset[i] = {IRS * 5 * normal(generator), IRS * normal(generator), IRS * normal(generator)};
         glUniform3fv(shader->getUniformFromName("instanceOffset[" +  std::to_string(i) + "]"), 1, glm::value_ptr(instanceOffset[i]));
     }
@@ -502,20 +536,14 @@ void initScene() {
    
     
     if (scene == 0) {
-        // Default star yellow/orange lights
-        lightNode0->color = glm::vec3(0.8, 0.2, 0.0); // Reddish
-        lightNode1->color = glm::vec3(0.9, 0.4, 0.0); // Orange
-        lightNode2->color = glm::vec3(0.9, 0.3, 0.0); // Reddish but brighter
+        // Default star yellow/orange light
+        lightNode2->color = glm::vec3(0.9, 0.3, 0.0); // Orange
     } else if (scene == 1) {
-        // Neutron star blue lights
-        lightNode0->color = glm::vec3(0.2, 0.2, 0.9); // Blueish
-        lightNode1->color = glm::vec3(0.2, 0.8, 0.9); // Cyan
-        lightNode2->color = glm::vec3(0.1, 0.2, 1.0); // Intense red
+        // Neutron star blue light
+        lightNode2->color = glm::vec3(0.3, 0.4, 0.7); // Light blue
     } else if (scene == 2) {
-        // Red giant orange lights
-        lightNode0->color = glm::vec3(1.0, 0.2, 0.0); // Orange
-        lightNode1->color = glm::vec3(1.0, 0.5, 0.0); // Orange
-        lightNode2->color = glm::vec3(1.0, 0.4, 0.0); // Orange
+        // Red giant orange light
+        lightNode2->color = glm::vec3(1.0, 0.4, 0.0); // Oranger
     }
     
     // Light stuff
@@ -577,6 +605,7 @@ void initScene() {
     
     
     // Dyson sphere lotus components, 1 for each radius. They have one model each
+    dysonSphereNode = createSceneNode();
     dysonNode1 = createSceneNode();
     dysonNode2 = createSceneNode();
     dysonNode3 = createSceneNode();
@@ -603,7 +632,12 @@ void initScene() {
     dysonNode2->nodeType = DYSON; dysonNode2->texID = dyson2TexID;
     dysonNode3->nodeType = DYSON; dysonNode3->texID = dyson3TexID;
 
+    dysonSphereNode->children.push_back(dysonNode1);
+    dysonSphereNode->children.push_back(dysonNode2);
+    dysonSphereNode->children.push_back(dysonNode3);
+
     // Construct scene graph
+    rootNode->children.push_back(orbitNode1);
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(starNode);
     //rootNode->children.push_back(textNode);
@@ -611,6 +645,8 @@ void initScene() {
 
     if (scene == 0) {
         starNode->children.push_back(arcNode);
+        rootNode->children.push_back(orbitNode2);
+        rootNode->children.push_back(orbitNode3);
     }
     if (scene == 1) {
         starNode->children.push_back(jetNode);
@@ -619,9 +655,9 @@ void initScene() {
         }
     }
     if (scene == 2) {
-        rootNode->children.push_back(dysonNode1);
-        rootNode->children.push_back(dysonNode2);
-        rootNode->children.push_back(dysonNode3);
+        orbitNode1->rotation = glm::vec3(tau/18, 0, 0);
+        dysonSphereNode->rotation = glm::vec3(tau/12, tau/3, 0);
+        rootNode->children.push_back(dysonSphereNode);
     }
 
     getTimeDeltaSeconds();

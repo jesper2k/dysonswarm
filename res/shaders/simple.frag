@@ -62,6 +62,7 @@ float diffuse_intensity;
 float shininess;
 float specular_intensity;
 float dither_intensity;
+float dyson_transparency;
 
 float fresnel() {
     surface_to_camera = normalize(cameraPosition/star_size - position);
@@ -117,6 +118,11 @@ vec4 tonemap(vec4 HDR) {
 
 void main()
 {
+    /** /
+    color = vec4(1, 0.5, 1, 1);
+    return;
+    /**/
+
     if (is_fresnel == 1) {
         float f = fresnel();
         color = vec4(5.0 * f * fresnelColor, f);
@@ -130,9 +136,12 @@ void main()
 
         color = texture(tex, textureCoordinates);
         if (is_dyson == 0) {
+
             //color = tonemap(color);
             return;
         }
+        dyson_transparency = color.w;
+        color = texture(tex, textureCoordinates*60);
 
         // Animation if i want to add that
         /** /
@@ -158,7 +167,7 @@ void main()
     
     if (is_dyson == 1) {
         //totalColor += vec4(0.0, 0.0, 0.0, 1.0);
-        color = totalColor + color;
+        color = vec4(totalColor.xyz + color.xyz, dyson_transparency);
         return;
     }
     
