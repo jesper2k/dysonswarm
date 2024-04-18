@@ -49,10 +49,9 @@ int calculateShadows = 0;
 float pi = 3.1415926535897926462;
 float tau = 2 * pi;
 
-bool mute = true;
 
 // Scene setup
-int scene = 2;
+int scene = 1;
 int numSecneProperties = 6; // Manually updated
 SceneConfig sceneConfigs[3] = {
     {
@@ -84,18 +83,18 @@ SceneConfig sceneConfigs[3] = {
         500,
     },
     {
-        30.0f,
-        250,
+        40.0f,
+        350,
         800,
-        0.003,
+        0.002,
         "sun_col.png",
         "hex.obj",
         glm::vec3(1.0, 0.4, 0.2),
-        100,
-        110,
+        140,
+        150,
         0.2,
-        0.3,
-        1000,
+        0.01,
+        700,
     },
 };
 
@@ -155,9 +154,8 @@ SceneNode* dysonSphereNode;
 SceneNode* dysonNode1;
 SceneNode* dysonNode2;
 SceneNode* dysonNode3;
-SceneNode* orbitNode1;
-SceneNode* orbitNode2;
-SceneNode* orbitNode3;
+SceneNode* orbitNode;
+SceneNode* starRefNode;
 
 PointLight* lightNode0;
 PointLight* lightNode1;
@@ -169,6 +167,8 @@ double ballRadius = 3.0f;
 
 
 // These are heap allocated, because they should not be initialised at the start of the program
+
+bool mute = false;
 sf::SoundBuffer* buffer1; // DSP main theme
 sf::SoundBuffer* buffer2; // Mountain King
 Gloom::Shader* shader;
@@ -178,9 +178,6 @@ sf::Sound* sound2;
 const glm::vec3 boxDimensions(180, 90, 90);
 const glm::vec3 padDimensions(30, 3, 40);
 const glm::vec3 MirrorDimensions(3, 10, 10);
-
-glm::vec3 ballPosition(0, ballRadius + padDimensions.y, boxDimensions.z / 2);
-glm::vec3 ballDirection(1, 1, 0.2f);
 
 CommandLineOptions options;
 
@@ -306,6 +303,37 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glfwSetCursorPosCallback(window, mouseCallback);
     glfwSetKeyCallback(window, keyCallback);
     initScene();
+
+
+    buffer1 = new sf::SoundBuffer();
+    buffer2 = new sf::SoundBuffer();
+    if (!buffer1->loadFromFile("../res/DSP_main_theme.ogg")) {
+        return;
+    }
+    if (!buffer2->loadFromFile("../res/outerwilds_sun.ogg")) {
+        return;
+    }
+
+    sf::Time startTime = sf::seconds(debug_startTime);
+
+    // Music: DSP main theme
+    sound1 = new sf::Sound();
+    std::cout << sound1->getStatus() << std::endl;
+    sound1->setBuffer(*buffer1);
+    sound1->setPlayingOffset(startTime);
+    sound1->setVolume(20);
+    sound1->setLoop(true);
+    std::cout << sound1->getStatus() << std::endl;
+
+    // Bubbling sound, only when close to star
+    sound2 = new sf::Sound();
+    sound2->setBuffer(*buffer2);
+    sound2->setPlayingOffset(startTime);
+    sound2->setVolume(0);
+    sound2->setLoop(true);
+    
+    if (!mute) sound1->play();
+    if (!mute) sound2->play();
 }
 
 void initScene() {
@@ -319,34 +347,7 @@ void initScene() {
 
     // Init rand
     srand(time(0));
-
-    buffer1 = new sf::SoundBuffer();
-    buffer2 = new sf::SoundBuffer();
-    if (!buffer1->loadFromFile("../res/DSP_main_theme.ogg")) {
-        return;
-    }
-    if (!buffer2->loadFromFile("../res/Mountain_King.ogg")) {
-        return;
-    }
     
-    
-    // Music: DSP main theme
-    sound1 = new sf::Sound();
-    sound1->setBuffer(*buffer1);
-    sf::Time startTime = sf::seconds(debug_startTime);
-    sound1->setPlayingOffset(startTime);
-    sound1->setVolume(50);
-    sound1->setLoop(true);
-
-    // Bubbling sound, only when close to star
-    sound2 = new sf::Sound();
-    sound2->setBuffer(*buffer2);
-    sound2->setPlayingOffset(startTime);
-    sound2->setVolume(50);
-    sound2->setLoop(true);
-
-    if (!mute) sound1->play();
-    if (!mute) sound2->play();
 
     // Updating scene variables, passing some to the shaders
     fresnelColor = sceneConfigs[scene].fresnelColor;
@@ -367,15 +368,18 @@ void initScene() {
     // Create meshes
     Mesh pad = cube(padDimensions, glm::vec2(30, 40), true);
     Mesh box = cube(boxDimensions, glm::vec2(90), true, true);
-    Mesh sphere = generateSphere(1.0, 40, 40);
+
+    
+    Mesh sphere = loadObj("../res/models/uv_sphere.obj");
+    //Mesh sphere = generateSphere(1.0, 40, 40); // Bad UVs!
     Mesh text = generateTextGeometryBuffer("[" + std::to_string((int)(numMirrors * instances)) + "]", 39./29., 29);
 
     //Mesh mirrorModel = loadObj("../res/models/hex2sided.obj");
     Mesh mirrorModel = loadObj("../res/models/" + sceneConfigs[scene].mirrorModel);
     Mesh model = mirrorModel;
-    Mesh dysonLayer1model = loadObj("../res/models/dysonLayer1.obj");
-    Mesh dysonLayer2model = loadObj("../res/models/dysonLayer2.obj");
-    Mesh dysonLayer3model = loadObj("../res/models/dysonLayer3.obj");
+    Mesh dysonLayer1model = loadObj("../res/models/dysonLayer1b.obj");
+    Mesh dysonLayer2model = loadObj("../res/models/dysonLayer2b.obj");
+    Mesh dysonLayer3model = loadObj("../res/models/dysonLayer3b.obj");
 
     PNGImage dysonColor1Texture = loadPNGFile("../res/textures/dysonColor0.png");
     PNGImage dysonColor2Texture = loadPNGFile("../res/textures/dysonColor1.png");
@@ -428,6 +432,11 @@ void initScene() {
     rootNode = createSceneNode();
     rootNode->children = {};
 
+
+    // reference point node, for parenting stuff without inheriting all properties
+    // And for correct rendering order
+    starRefNode = createSceneNode();
+
     // The star
     starNode = createSceneNode();
     starNode->vertexArrayObjectID  = generateBuffer(sphere);
@@ -443,20 +452,21 @@ void initScene() {
     glowNode->nodeType = FRESNEL;
 
 
-    orbitNode1 = createSceneNode();
-    orbitNode2 = createSceneNode();
-    orbitNode3 = createSceneNode();
-
     // Need to parent to star for correct render order, but don't actually want its rotation
+    orbitNode = createSceneNode();
+
     //orbitNode1->rotation = -starNode->rotation;
+    /*
     orbitNode1->rotation = glm::vec3(0, 0, 0);
     orbitNode2->rotation = glm::vec3(tau/12, tau/2, tau/24);
     orbitNode3->rotation = glm::vec3(tau/6, tau/6, 0);
+    */
 
-    // This leads to non-accurate orbital speeds between different orbits.
-    orbitNode1->scale = 1.0f * glm::vec3(1, 1, 1);
+    orbitNode->scale = 1.7f * glm::vec3(1, 1, 1);
+    /*
     orbitNode2->scale = 3.0f * glm::vec3(1, 1, 1);
     orbitNode3->scale = 4.0f * glm::vec3(1, 1, 1);
+    */
 
     // Making nodes that the instances can be offset relative to
     int modelVAOID = generateBuffer(model);
@@ -465,28 +475,28 @@ void initScene() {
     for (int i = 0; i < numMirrors; i++) {
         Mirror* newMirror = new Mirror();
         newMirror->position = glm::vec3(0, 0, 0);
+        newMirror->vertexArrayObjectID = modelVAOID;
+        newMirror->VAOIndexCount = model.indices.size();
 
         if (scene == 0) {
             float r = random();
-            if (r < 0.3) {
-                orbitNode1->children.push_back(newMirror);
+            if (r < 0.1) {
+                
             } else if (r < 0.8) {
-                orbitNode2->children.push_back(newMirror);
+
             } else {
-                orbitNode3->children.push_back(newMirror);
+
             }
         } else {
-            orbitNode1->children.push_back(newMirror);
+
         }
-        
-        newMirror->vertexArrayObjectID = modelVAOID;
-        newMirror->VAOIndexCount = model.indices.size();
 
         newMirror->radius = baseRadius + randRadius * random();
         newMirror->inclination = newMirror->radius * maxInclination * random();
         newMirror->LAN = tau * random();
 
         mirrors[i] = newMirror;
+        orbitNode->children.push_back(newMirror);
     }
 
     // Setting up the offet array
@@ -517,7 +527,7 @@ void initScene() {
     rootNode->position = glm::vec3(0, 0, 0);
 
     
-    starNode->scale = glm::vec3(starSize, starSize, starSize);
+    starNode->scale = 1.2f*glm::vec3(starSize, starSize, starSize);
     starNode->position = glm::vec3(0, 0, 0);
 
 
@@ -604,7 +614,7 @@ void initScene() {
     jetNode->texID = starTexID;
     
     
-    // Dyson sphere lotus components, 1 for each radius. They have one model each
+    // Dyson sphere lotus segmensts, 1 for each radius (3 in total). They have one model each
     dysonSphereNode = createSceneNode();
     dysonNode1 = createSceneNode();
     dysonNode2 = createSceneNode();
@@ -624,8 +634,8 @@ void initScene() {
 
     float dysonShellRadius = starSize * 4.0f;
     dysonNode1->scale = 1.0f * glm::vec3(1, 1, 1) * dysonShellRadius;
-    dysonNode2->scale = 1.1f * glm::vec3(1, 1, 1) * dysonShellRadius;
-    dysonNode3->scale = 1.2f * glm::vec3(1, 1, 1) * dysonShellRadius;
+    dysonNode2->scale = 1.0f * glm::vec3(1, 1, 1) * dysonShellRadius;
+    dysonNode3->scale = 1.0f * glm::vec3(1, 1, 1) * dysonShellRadius;
 
     // Passing more info for the fragment shader to do custom rendering with
     dysonNode1->nodeType = DYSON; dysonNode1->texID = dyson1TexID;
@@ -635,30 +645,37 @@ void initScene() {
     dysonSphereNode->children.push_back(dysonNode1);
     dysonSphereNode->children.push_back(dysonNode2);
     dysonSphereNode->children.push_back(dysonNode3);
+    dysonSphereNode->scale = 2.0f * glm::vec3(1, 1, 1);
 
-    // Construct scene graph
-    rootNode->children.push_back(orbitNode1);
-    rootNode->children.push_back(boxNode);
-    rootNode->children.push_back(starNode);
+    // Construct scene graph. Reorganized for render ordering.
+
     //rootNode->children.push_back(textNode);
-    starNode->children.push_back(glowNode);
+    starRefNode->children.push_back(orbitNode);
+    rootNode->children.push_back(boxNode);
+    rootNode->children.push_back(starRefNode);
+    starRefNode->children.push_back(starNode);
+    starNode->children.push_back(glowNode); // Fresnel
 
     if (scene == 0) {
         starNode->children.push_back(arcNode);
-        rootNode->children.push_back(orbitNode2);
-        rootNode->children.push_back(orbitNode3);
     }
-    if (scene == 1) {
+    else if (scene == 1) {
         starNode->children.push_back(jetNode);
         for (int i = 0; i < numMagNodes; i++) {
             starNode->children.push_back(magNodes[i]);
         }
     }
-    if (scene == 2) {
-        orbitNode1->rotation = glm::vec3(tau/18, 0, 0);
+    else if (scene == 2) {
+        orbitNode->rotation = glm::vec3(tau/18, 0, 0);
         dysonSphereNode->rotation = glm::vec3(tau/12, tau/3, 0);
-        rootNode->children.push_back(dysonSphereNode);
+        starRefNode->children.push_back(dysonSphereNode);
     }
+
+    // Skybox and mirrors are not visible through the dyson sphere segmensts,
+    // but that is fine because they absorb a lot of the light,
+    // so only the star and other segmensts are visible though one segment
+    
+
 
     getTimeDeltaSeconds();
     
@@ -681,20 +698,20 @@ void updateFrame(GLFWwindow* window) {
     if (isKeyDown(GLFW_KEY_3)) { scene = 2; initScene(); }
     
     // Debug interaction
-    float debugValueSensitivity = 0.01f;
+    float debugValueSensitivity = 0.1f;
     if (isKeyDown(GLFW_KEY_UP)) debugValue1    += debugValueSensitivity;
     if (isKeyDown(GLFW_KEY_DOWN)) debugValue1  += -debugValueSensitivity;
     if (isKeyDown(GLFW_KEY_LEFT)) debugValue2  += -debugValueSensitivity;
     if (isKeyDown(GLFW_KEY_RIGHT)) debugValue2 += debugValueSensitivity;
     if (isKeyDown(GLFW_KEY_UP) ||
-        isKeyDown(GLFW_KEY_UP) ||
-        isKeyDown(GLFW_KEY_UP) ||
+        isKeyDown(GLFW_KEY_DOWN) ||
+        isKeyDown(GLFW_KEY_LEFT) ||
         isKeyDown(GLFW_KEY_RIGHT)) {
-        /*    
+        /**/   
         std::cout << 
         "Debug value 1: " << debugValue1 << std::endl << 
-        "Debug value 2: " << debugValue2 << std::endl;
-        */
+        "Debug value 2: " << debugValue2 << std::endl << std::endl;
+        /**/
     }
     
     // Reset debug values
@@ -702,6 +719,9 @@ void updateFrame(GLFWwindow* window) {
         debugValue1 = 0.0f;
         debugValue2 = 0.0f;
     }
+    
+    glUniform1f(25, debugValue1);
+    glUniform1f(26, debugValue2);
 
     
     glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 100000.f);
@@ -727,7 +747,7 @@ void updateFrame(GLFWwindow* window) {
     if (isKeyDown(GLFW_KEY_LEFT_SHIFT)) {
         speed = movementSpeedAmplified;
     } else if (isKeyDown(GLFW_KEY_LEFT_CONTROL)) {
-        speed = 1/glm::pow(movementSpeedAmplified, 3);
+        speed = 1/glm::pow(movementSpeedAmplified, 2);
     } else {
         speed = movementSpeed;
     }
@@ -756,12 +776,14 @@ void updateFrame(GLFWwindow* window) {
     }
     
     // surfance prominence
-    arcNode->rotation = { gameElapsedTime + tau/2 + debugValue1, tau/4 + debugValue2, -tau/4 };
+    arcNode->rotation = { gameElapsedTime + tau/2, tau/4, -tau/4 };
 
     /**/
     dysonNode1->rotation = { 0, -gameElapsedTime/1.5f * dysonOrbitSpeed, 0 };
     dysonNode2->rotation = { 0, gameElapsedTime/3.0f * dysonOrbitSpeed, 0 };
     dysonNode3->rotation = { 0, -gameElapsedTime/5.0f * dysonOrbitSpeed, 0 };
+    dysonSphereNode->rotation = glm::vec3(tau/12, tau/3+debugValue1, 0);
+
     /**/
 
     float distanceToStar = glm::length(cameraPosition - starNode->position);
@@ -772,14 +794,14 @@ void updateFrame(GLFWwindow* window) {
     for (int i = 0; i < numMirrors; i++) {
 
         float inc = mirrors[i]->inclination;
-        float LAN = mirrors[i]->LAN; // Longitude of the ascending node (Inclination rotation offset)
+        float LAN = mirrors[i]->LAN; 
         float r = mirrors[i]->radius; // Orbital radius
 
         float offset = tau * i/numMirrors; // Mean anomaly (Offset from first mirror)
 
         // Orbit position, how far in the circular orbit each mirror is
         // Orbital period (float o) is proportional to r^(3/2) (Kepler's third law).
-        // Orbital *speed* is r times more, at r^5/2, but it's not used here.
+        // Orbital *speed* is r times more, at r^5/2, but it's not useful here.
         float o = std::pow(r/baseRadius, -1.5) * t*swarmOrbitSpeed + offset;
 
         mirrors[i]->position = starNode->position + glm::vec3(
@@ -796,15 +818,10 @@ void updateFrame(GLFWwindow* window) {
 
     // --- Shader stuff for lighting --- //
 
-    // Passing a uniform to the vertex and fragment shaders
-    //glUniform3f(0, 0.5, 1.0, 1.5);
-
     float ambient = 0.05;
     glUniform1f(7, ambient);
     
     glUniform1i(10, calculateShadows);
-
-    glUniform3f(8, ballPosition.x/180, ballPosition.y/90, ballPosition.z/90);
 
     glUniform3f(12, cameraPosition.x, cameraPosition.y, cameraPosition.z);
     

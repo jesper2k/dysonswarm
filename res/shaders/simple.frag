@@ -35,12 +35,15 @@ uniform layout(location = 14) int is_dyson;
 uniform layout(location = 15) float star_size;
 uniform layout(location = 16) int is_animation;
 
+uniform layout(location = 25) float debug_value_1;
+uniform layout(location = 26) float debug_value_2;
 
 
 float ball_radius = 0.1;
 
 // Texture
 layout(binding = 1) uniform sampler2D tex;
+layout(binding = 2) uniform sampler2D screen_tex;
 
 
 // Helper functions
@@ -83,15 +86,15 @@ vec4 calculateFragmentColor(Light light) {
     diffuse_color = light.color;
     if (is_dyson == 1) {
         // Dyson material is more rough than swarm mirrors. This also creates a glow around the star
-        shininess = 2.0;
+        shininess = 1.0;
         if (diffuse_intensity < 0) {
-            diffuse_color += vec3(1.0, -1.0, -1.0);
+            diffuse_color += vec3(2.0, -1.0, -1.0);
         } else {
-            diffuse_color += vec3(1.0, 0.2, 0.0);
+            diffuse_color += vec3(2.0, 0.2, 0.0);
         }
         diffuse_intensity = abs(diffuse_intensity);
     } else {
-        shininess = 30.0;
+        shininess = 10.0;
         // Only the inside of the dyson sphere gets bright, but the swarm mirrors are reflective
         diffuse_intensity = abs(diffuse_intensity);
     }
@@ -108,13 +111,31 @@ vec4 calculateFragmentColor(Light light) {
     
 }
 
-/** /
-vec4 tonemap(vec4 HDR) {
-    vec3 LDR = vec3(HDR.x, HDR.y, HDR.z);
+
+vec4 postProcess(vec4 color_in) {
+
+    //vec4 color_out = vec4(color_in.x, color_in.y, color_in.z, color_in.w);
+
+    // Failed experiment with chromatic abberation
+    /** /
+    float red_offset   =  0.005;
+    float green_offset =  0.003;
+    float blue_offset  =  0.000;
+
+    float transparency = color_in.w;
+
+    vec2 tex_size  = textureSize(screen_tex, 0).xy;
+    vec2 tex_coord = gl_FragCoord.xy / tex_size;
     
-    return vec4(LDR, 1.0);
+    vec2 direction = tex_coord - tex_size/2;
+    
+    color_out.x  = texture(screen_tex, tex_coord + (direction * vec2(red_offset  ))).x;
+    color_out.y  = texture(screen_tex, tex_coord + (direction * vec2(green_offset))).y;
+    color_out.zw = texture(screen_tex, tex_coord + (direction * vec2(blue_offset ))).xw;
+    /**/
+    
+    return color_in;
 }
-/**/
 
 void main()
 {
@@ -128,7 +149,7 @@ void main()
         color = vec4(5.0 * f * fresnelColor, f);
         //color = vec4(f * vec3(1.0, 1.0, 1.0), 1.0); // Black white debug fresnel
         
-        
+        color = postProcess(color);
         return;
     }
         
@@ -137,7 +158,13 @@ void main()
         color = texture(tex, textureCoordinates);
         if (is_dyson == 0) {
 
-            //color = tonemap(color);
+            // Optional preprocessing of textures for smooth "black->transparency" gradient
+            /** /
+            if (color.w < 0.99) {
+                color.w = (color.x + color.y + color.z)/3;
+            }
+            /**/
+            color = postProcess(color);
             return;
         }
         dyson_transparency = color.w;
@@ -167,10 +194,12 @@ void main()
     
     if (is_dyson == 1) {
         //totalColor += vec4(0.0, 0.0, 0.0, 1.0);
-        color = vec4(totalColor.xyz + color.xyz, dyson_transparency);
+        color = vec4(0.5*totalColor.xyz + color.xyz + vec3(1, debug_value_1-0.05, 0.05), dyson_transparency);
+        color = postProcess(color);
         return;
     }
     
-    color = totalColor; 
+    color = postProcess(totalColor);
+    //color = totalColor; 
 }
     
