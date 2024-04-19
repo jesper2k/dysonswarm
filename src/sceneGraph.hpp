@@ -14,11 +14,43 @@
 #include <fstream>
 
 enum SceneNodeType {
-	GEOMETRY, POINT_LIGHT, TEXTURE,
+	GEOMETRY, POINT_LIGHT, TEXTURE, INSTANCED, FRESNEL, DYSON, ANIMATION
 };
 
 enum TextureType {
 	COLOR, NORMAL, ROUGHNESS,
+};
+
+struct SceneConfig {
+    float starSize;
+    int numMirrors;
+    int instances; // Total meshes will be numMirrors * instances
+    float mirrorSize;
+    std::string starTextureFile;
+    std::string mirrorModel;
+    glm::vec3 fresnelColor;
+    float swarmMinRadius;
+    float swarmMaxRadius;
+    float swarmOrbitSpeed;
+    float swarmInclination;
+    float instanceSpread;
+};
+
+// Each instance group has these properties
+// Read more at https://en.wikipedia.org/wiki/Orbital_elements
+// NOTE: Refactor of previous system, unused due to time constraints
+struct OrbitalElements {
+    float radius;
+    float speed; // Expressed in angular frequency (i.e. speed = 0.25 is one rotation per 4 sec)
+    float inclination; // 0 = orbit is flat with the xz-plane, tau/4 = orbit goes over star
+    float LAN; // Longitude of the ascending node (Inclination rotated around y-axis)
+    float MA; // Mean Anomaly, how far in a full orbit the object is (Similar to t in lerp)
+    float MAoffset; // Offset relative to MA = 0, so they don't all start in the same place
+};
+
+struct KeyValue {
+    int key;
+    bool value;
 };
 
 struct SceneNode {
@@ -26,6 +58,7 @@ struct SceneNode {
 		position = glm::vec3(0, 0, 0);
 		rotation = glm::vec3(0, 0, 0);
 		scale = glm::vec3(1, 1, 1);
+		RGBA = glm::vec4(0, 0, 0, 0);
 
         referencePoint = glm::vec3(0, 0, 0);
         vertexArrayObjectID = -1;
@@ -36,16 +69,17 @@ struct SceneNode {
 	}
 
 	// A list of all children that belong to this node.
-	// For instance, in case of the scene graph of a human body shown in the assignment text, the "Upper Torso" node would contain the "Left Arm", "Right Arm", "Head" and "Lower Torso" nodes in its list of children.
 	std::vector<SceneNode*> children;
 	
 	// The node's position and rotation relative to its parent
 	glm::vec3 position;
 	glm::vec3 rotation;
 	glm::vec3 scale;
+	glm::vec4 RGBA;
     glm::mat4 modelMatrix;
 
-	// A transformation matrix representing the transformation of the node's location relative to its parent. This matrix is updated every frame.
+	// A transformation matrix of the node's location relative to its parent.
+    // This matrix is updated every frame.
 	glm::mat4 currentTransformationMatrix;
 
 	// The location of the node's reference point
@@ -73,6 +107,25 @@ struct PointLight : SceneNode {
     
     double intensity;
     glm::vec3 color;
+};
+
+
+struct Mirror : SceneNode {
+    
+	Mirror() : SceneNode() {
+        intensity = 1.0;
+        color = glm::vec3(1, 1, 1);
+        normal = glm::vec3(1, 0, 0); // Not working
+        nodeType = INSTANCED;
+    }
+    
+    double intensity;
+    glm::vec3 color;
+    glm::vec3 normal;
+
+    float radius;
+    float LAN;
+    float inclination;
 };
 
 

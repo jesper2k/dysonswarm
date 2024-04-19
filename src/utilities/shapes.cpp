@@ -5,6 +5,53 @@
 #define M_PI 3.14159265359f
 #endif
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
+// Model loader by Odd Eirik
+Mesh loadObj(std::string filename) {
+    tinyobj::attrib_t attributes;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string error;
+    std::string warning;
+    tinyobj::LoadObj(&attributes, &shapes, &materials, &warning, &error, filename.c_str(), nullptr, false);
+
+    Mesh m;
+    if (shapes.size() > 1){
+        std::cerr << "Unsupported obj format: more than one mesh in file" << std::endl;
+        return m;
+    }
+    if (shapes.size() == 0){
+        std::cerr << error << std::endl;
+        return m;
+    }
+    const auto &shape = shapes.front();
+    std::cout << "Loaded object " << shape.name << " from file " << filename << std::endl;
+    const auto &tmesh = shape.mesh;
+    for (const auto i : tmesh.indices){
+        m.indices.push_back(m.indices.size());
+        glm::vec3 pos;
+        pos.x = attributes.vertices.at(3 * i.vertex_index);
+        pos.y = attributes.vertices.at(3 * i.vertex_index+1);
+        pos.z = attributes.vertices.at(3 * i.vertex_index+2);
+        m.vertices.push_back(pos);
+        glm::vec3 normal;
+        normal.x = attributes.normals.at(3 * i.normal_index + 0);
+        normal.y = attributes.normals.at(3 * i.normal_index + 1);
+        normal.z = attributes.normals.at(3 * i.normal_index + 2);
+        m.normals.push_back(normal);
+        glm::vec2 uv;
+        uv.x = attributes.texcoords.at(2 * i.texcoord_index + 0);
+        uv.y = attributes.texcoords.at(2 * i.texcoord_index + 1);
+        m.textureCoordinates.push_back(uv);
+
+    }
+
+    return m;
+}
+
+
 Mesh cube(glm::vec3 scale, glm::vec2 textureScale, bool tilingTextures, bool inverted, glm::vec3 textureScale3d) {
     glm::vec3 points[8];
     int indices[36];
@@ -160,6 +207,7 @@ Mesh generateSphere(float sphereRadius, int slices, int layers) {
                                   sphereRadius * nextRadius * currentDirectionY,
                                   sphereRadius * nextZ);
 
+
             normals.emplace_back(radius * currentDirectionX,
                                  radius * currentDirectionY,
                                  currentZ);
@@ -186,11 +234,13 @@ Mesh generateSphere(float sphereRadius, int slices, int layers) {
             indices.emplace_back(i + 4);
             indices.emplace_back(i + 5);
 
+            // UV coordinates
             for (int j = 0; j < 6; j++) {
                 glm::vec3 vertex = vertices.at(i+j);
+                vertex = vertex/sphereRadius;
                 uvs.emplace_back(
-                    0.5 + (glm::atan(vertex.z, vertex.y)/(2.0*M_PI)),
-                    0.5 - (glm::asin(vertex.y)/M_PI)
+                    0.5 + (glm::atan(vertex.z, -vertex.x)/(2.0*M_PI)),
+                    0.5 + (glm::asin(vertex.y)/M_PI)
                 );
             }
 

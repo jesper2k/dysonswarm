@@ -133,3 +133,6 @@ target_link_libraries (${PROJECT_NAME}
                        ${GLFW_LIBRARIES}
                        ${GLAD_LIBRARIES})
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT glowbox)
+
+#tinyobj
+include_directories(lib/tinyobjloader)
