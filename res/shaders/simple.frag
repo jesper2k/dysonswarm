@@ -194,7 +194,7 @@ void main()
     
     if (is_dyson == 1) {
         //totalColor += vec4(0.0, 0.0, 0.0, 1.0);
-        color = vec4(0.5*totalColor.xyz + color.xyz + vec3(1, debug_value_1-0.05, 0.05), dyson_transparency);
+        color = vec4(0.5*totalColor.xyz + color.xyz + vec3(1, -0.05, 0.05), dyson_transparency);
         color = postProcess(color);
         return;
     }

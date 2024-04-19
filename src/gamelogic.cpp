@@ -51,21 +51,21 @@ float tau = 2 * pi;
 
 
 // Scene setup
-int scene = 1;
+int scene = 0;
 int numSecneProperties = 6; // Manually updated
 SceneConfig sceneConfigs[3] = {
     {
         /* Star radius                   */ 15.0f,
-        /* Mirror objects                */ 500,
+        /* Mirror objects                */ 300,
         /* Instances per object          */ 1000,  // Total meshes will be numMirrors * instances
-        /* Mirror size                   */ 0.002,
+        /* Mirror size                   */ 0.003,
         /* Star texture filename         */ "sun_col.png",
         /* Mirror model filename         */ "hex.obj",
         /* Fresnel color                 */ glm::vec3(0.9, 0.5, 0.1),
         /* Swarm min-radius              */ 80,
-        /* Swarm max-radius              */ 100,
+        /* Swarm max-radius              */ 120,
         /* Swarm orbital speed           */ 0.05,
-        /* Swarm orbit inclination       */ 0.05,
+        /* Swarm orbit inclination       */ 0.25,
         /* Instance mirror spread        */ 1000,
     },
     {
@@ -168,7 +168,7 @@ double ballRadius = 3.0f;
 
 // These are heap allocated, because they should not be initialised at the start of the program
 
-bool mute = false;
+bool muteMusic = true;
 sf::SoundBuffer* buffer1; // DSP main theme
 sf::SoundBuffer* buffer2; // Mountain King
 Gloom::Shader* shader;
@@ -321,7 +321,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     std::cout << sound1->getStatus() << std::endl;
     sound1->setBuffer(*buffer1);
     sound1->setPlayingOffset(startTime);
-    sound1->setVolume(20);
+    sound1->setVolume(10);
     sound1->setLoop(true);
     std::cout << sound1->getStatus() << std::endl;
 
@@ -331,9 +331,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     sound2->setPlayingOffset(startTime);
     sound2->setVolume(0);
     sound2->setLoop(true);
-    
-    if (!mute) sound1->play();
-    if (!mute) sound2->play();
+    sound2->play();
 }
 
 void initScene() {
@@ -372,7 +370,7 @@ void initScene() {
     
     Mesh sphere = loadObj("../res/models/uv_sphere.obj");
     //Mesh sphere = generateSphere(1.0, 40, 40); // Bad UVs!
-    Mesh text = generateTextGeometryBuffer("[" + std::to_string((int)(numMirrors * instances)) + "]", 39./29., 29);
+    Mesh text = generateTextGeometryBuffer("Press buttons [1] [2] and [3] to switch between scenes!", 39./29., 29);
 
     //Mesh mirrorModel = loadObj("../res/models/hex2sided.obj");
     Mesh mirrorModel = loadObj("../res/models/" + sceneConfigs[scene].mirrorModel);
@@ -424,9 +422,9 @@ void initScene() {
     textNode->nodeType = TEXTURE;
     textNode->textureType = COLOR;
     textNode->texID = textTexID;
-    // Text disabled
-    textNode->scale.x = 0;
-    textNode->scale.y = 0;
+    
+    textNode->scale.x = 8;
+    textNode->scale.y = 8;
 
     // Making a new root and killing all children
     rootNode = createSceneNode();
@@ -537,7 +535,7 @@ void initScene() {
     
 
     // Config todo
-    textNode->position = glm::vec3(-60, 0, -150);
+    textNode->position = glm::vec3(-115, starSize * 1.4, 0);
     
     starNode->position = glm::vec3(0, 0, 0);
     glowNode->position = glm::vec3(0, 0, 0);
@@ -649,7 +647,9 @@ void initScene() {
 
     // Construct scene graph. Reorganized for render ordering.
 
-    //rootNode->children.push_back(textNode);
+    if (scene == 0) {
+        starRefNode->children.push_back(textNode);
+    }
     starRefNode->children.push_back(orbitNode);
     rootNode->children.push_back(boxNode);
     rootNode->children.push_back(starRefNode);
@@ -718,6 +718,12 @@ void updateFrame(GLFWwindow* window) {
     if (isKeyDown(GLFW_KEY_R)) {
         debugValue1 = 0.0f;
         debugValue2 = 0.0f;
+    }
+
+    if (gameElapsedTime > 5.0f) {
+        // It's too late for me to do this correctly. Please forgive me
+        textNode->scale.x = 0;
+        textNode->scale.y = 0;
     }
     
     glUniform1f(25, debugValue1);

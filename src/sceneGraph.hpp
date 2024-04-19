@@ -37,7 +37,8 @@ struct SceneConfig {
 };
 
 // Each instance group has these properties
-//Read more at https://en.wikipedia.org/wiki/Orbital_elements
+// Read more at https://en.wikipedia.org/wiki/Orbital_elements
+// NOTE: Refactor of previous system, unused due to time constraints
 struct OrbitalElements {
     float radius;
     float speed; // Expressed in angular frequency (i.e. speed = 0.25 is one rotation per 4 sec)
