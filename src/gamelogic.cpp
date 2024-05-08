@@ -341,7 +341,7 @@ void initScene() {
     shader->makeBasicShader("../res/shaders/simple.vert", "../res/shaders/simple.frag");
     shader->activate();
 
-    std::cout << "spis meg py\n3" << std::endl; // Hello darkness my old friend
+    //std::cout << "spis meg py;-3" << std::endl; // Hello darkness my old friend
 
     // Init rand
     srand(time(0));
@@ -697,8 +697,9 @@ void updateFrame(GLFWwindow* window) {
     if (isKeyDown(GLFW_KEY_2)) { scene = 1; initScene(); }
     if (isKeyDown(GLFW_KEY_3)) { scene = 2; initScene(); }
     
-    // Debug interaction
     float debugValueSensitivity = 0.1f;
+    
+    // Debug interaction
     if (isKeyDown(GLFW_KEY_UP)) debugValue1    += debugValueSensitivity;
     if (isKeyDown(GLFW_KEY_DOWN)) debugValue1  += -debugValueSensitivity;
     if (isKeyDown(GLFW_KEY_LEFT)) debugValue2  += -debugValueSensitivity;
