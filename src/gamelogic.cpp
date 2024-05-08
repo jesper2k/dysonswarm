@@ -228,8 +228,15 @@ double mouseSensitivity = 1.0;
 bool firstMouseData = true;
 double lastMouseX = windowWidth / 2;
 double lastMouseY = windowHeight / 2;
+
+bool smoothCamera = true;
+float cameraSmoothness = 50;
 float lookDirectionX = 0.0;
 float lookDirectionY = 0.0;
+float lookDirectionXSmooth = 0.0;
+float lookDirectionYSmooth = 0.0;
+float currentLookDirectionX = 0.0; // Switches between either of the ones above, to avoid ifs
+float currentLookDirectionY = 0.0;
 
 float movementSpeed = 1.0;
 float movementSpeedAmplified = 3.0;
@@ -246,6 +253,7 @@ void mouseCallback(GLFWwindow* window, double x, double y) {
     
     lookDirectionX += 0.01 * mouseSensitivity * deltaX;
     lookDirectionY += 0.01 * mouseSensitivity * deltaY;
+
 
     // Keep x-values in the interval [0, tau]
     lookDirectionX = fmod(lookDirectionX, tau);
@@ -691,15 +699,26 @@ void updateFrame(GLFWwindow* window) {
     double timeDelta = getTimeDeltaSeconds();
     gameElapsedTime += timeDelta;
     //std::cout << gameElapsedTime << std::endl; // Debug time
+    
+    lookDirectionXSmooth += 1/cameraSmoothness * (lookDirectionX - lookDirectionXSmooth);
+    lookDirectionYSmooth += 1/cameraSmoothness * (lookDirectionY - lookDirectionYSmooth);
+    
+    if (smoothCamera) {
+        currentLookDirectionX = lookDirectionXSmooth;
+        currentLookDirectionY = lookDirectionYSmooth;
+    } else {
+        currentLookDirectionX = lookDirectionX;
+        currentLookDirectionY = lookDirectionY;
+    }
 
 
     if (isKeyDown(GLFW_KEY_1)) { scene = 0; initScene(); }
     if (isKeyDown(GLFW_KEY_2)) { scene = 1; initScene(); }
     if (isKeyDown(GLFW_KEY_3)) { scene = 2; initScene(); }
-    
-    float debugValueSensitivity = 0.1f;
+
     
     // Debug interaction
+    float debugValueSensitivity = 0.1f;
     if (isKeyDown(GLFW_KEY_UP)) debugValue1    += debugValueSensitivity;
     if (isKeyDown(GLFW_KEY_DOWN)) debugValue1  += -debugValueSensitivity;
     if (isKeyDown(GLFW_KEY_LEFT)) debugValue2  += -debugValueSensitivity;
@@ -747,8 +766,8 @@ void updateFrame(GLFWwindow* window) {
     }
     
     glm::vec4 cameraDirection = glm::vec4(0.0, 0.0, 0.0, 0.0);
-    movementVector = glm::rotate(-lookDirectionY, glm::vec3(1, 0, 0)) * movementVector;
-    movementVector = glm::rotate(-lookDirectionX, glm::vec3(0, 1, 0)) * movementVector;
+    movementVector = glm::rotate(-currentLookDirectionY, glm::vec3(1, 0, 0)) * movementVector;
+    movementVector = glm::rotate(-currentLookDirectionX, glm::vec3(0, 1, 0)) * movementVector;
     
     float speed;
     if (isKeyDown(GLFW_KEY_LEFT_SHIFT)) {
@@ -762,8 +781,8 @@ void updateFrame(GLFWwindow* window) {
     cameraPosition += (glm::vec3) movementVector * speed;
 
     glm::mat4 cameraTransform =
-                    glm::rotate(lookDirectionY, glm::vec3(1, 0, 0)) *
-                    glm::rotate(lookDirectionX, glm::vec3(0, 1, 0)) *
+                    glm::rotate(currentLookDirectionY, glm::vec3(1, 0, 0)) *
+                    glm::rotate(currentLookDirectionX, glm::vec3(0, 1, 0)) *
                     glm::translate(-cameraPosition);
 
     glm::mat4 VP = projection * cameraTransform;
